@@ -1,0 +1,19 @@
+{
+  "name": "facilipro-arce-site",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "nodemailer": "^10.1.1",
+    "pdfkit": "^0.16.0",
+    "stripe": "^17.5.0"
+  }
+}

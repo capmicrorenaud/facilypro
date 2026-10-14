@@ -1,0 +1,1781 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta
+      name="description"
+      content="Découvrez un accompagnement clair pour étudier votre projet ARCE : formulaire, prise de contact et suivi personnalisé."
+    >
+    <meta name="theme-color" content="#f8f7f3">
+    <title>Accompagnement ARCE | Votre Activité</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #17212f;
+        --muted: #5c6778;
+        --paper: #f3f6fb;
+        --white: #ffffff;
+        --navy: #0d1b2a;
+        --navy-soft: #1f3a5f;
+        --slate: #dfe7f3;
+        --blue: #2c5ee7;
+        --blue-soft: #eaf0ff;
+        --cyan: #7ad7ff;
+        --line: #dfe8f5;
+        --accent: #ff8a3d;
+        --accent-soft: #fff0e8;
+        --display: "Segoe UI", Arial, sans-serif;
+        --sans: "Segoe UI", Arial, sans-serif;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at top left, rgba(122, 215, 255, 0.25), transparent 30%),
+          radial-gradient(circle at top right, rgba(255, 138, 61, 0.12), transparent 26%),
+          linear-gradient(180deg, #f7f9fc 0%, #eef3fa 100%);
+        color: var(--ink);
+        font-family: var(--sans);
+        line-height: 1.6;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      a:focus-visible {
+        outline: 3px solid rgba(44, 94, 231, 0.45);
+        outline-offset: 4px;
+      }
+
+      .container {
+        width: min(1120px, calc(100% - 48px));
+        margin-inline: auto;
+      }
+
+      .topbar {
+        background: linear-gradient(90deg, var(--navy), var(--navy-soft));
+        color: var(--white);
+        font-size: 0.82rem;
+      }
+
+      .topbar-inner {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 18px;
+        min-height: 42px;
+      }
+
+      .topbar a {
+        color: var(--white);
+        text-decoration: none;
+        opacity: 0.92;
+      }
+
+      .topbar a:hover {
+        opacity: 1;
+      }
+
+      .site-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        border-bottom: 1px solid rgba(29, 36, 48, 0.06);
+        background: rgba(255, 255, 255, 0.82);
+        backdrop-filter: blur(14px);
+      }
+
+      .nav {
+        min-height: 82px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 28px;
+      }
+
+      .nav-toggle {
+        display: none;
+        width: 46px;
+        height: 46px;
+        border: 1px solid rgba(19, 33, 57, 0.1);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.9);
+        color: var(--navy);
+        cursor: pointer;
+      }
+
+      .nav-toggle span,
+      .nav-toggle span::before,
+      .nav-toggle span::after {
+        position: relative;
+        display: block;
+        width: 20px;
+        height: 2px;
+        margin: 0 auto;
+        border-radius: 2px;
+        background: currentColor;
+        content: "";
+        transition: transform 0.2s ease, opacity 0.2s ease;
+      }
+
+      .nav-toggle span::before {
+        position: absolute;
+        top: -6px;
+        left: 0;
+      }
+
+      .nav-toggle span::after {
+        position: absolute;
+        top: 6px;
+        left: 0;
+      }
+
+      .brand {
+        color: var(--navy);
+        font-family: var(--display);
+        font-size: 1.35rem;
+        font-weight: 700;
+        text-decoration: none;
+        white-space: nowrap;
+      }
+
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 30px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .nav-links a {
+        color: var(--muted);
+        font-size: 0.92rem;
+        text-decoration: none;
+      }
+
+      .nav-links a:hover {
+        color: var(--blue);
+      }
+
+      .button {
+        display: inline-flex;
+        min-height: 48px;
+        align-items: center;
+        justify-content: center;
+        padding: 0 22px;
+        border: 1px solid var(--blue);
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--blue), #3f7dff);
+        color: var(--white);
+        font-size: 0.92rem;
+        font-weight: 700;
+        text-decoration: none;
+        box-shadow: 0 12px 20px rgba(44, 94, 231, 0.22);
+        transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+      }
+
+      .button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 16px 28px rgba(44, 94, 231, 0.26);
+        filter: brightness(1.02);
+      }
+
+      .button-outline {
+        background: rgba(255, 255, 255, 0.8);
+        color: var(--navy);
+        border-color: rgba(19, 33, 57, 0.12);
+      }
+
+      .button-outline:hover {
+        background: var(--blue);
+        color: var(--white);
+      }
+
+      .phone-cta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 14px 0 12px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .phone-cta input {
+        width: 150px;
+        border: none;
+        background: transparent;
+        color: var(--white);
+        font: inherit;
+        outline: none;
+      }
+
+      .phone-cta input::placeholder {
+        color: rgba(255, 255, 255, 0.7);
+      }
+
+      .phone-cta .button {
+        min-height: 38px;
+        padding: 0 16px;
+        border-color: transparent;
+        background: linear-gradient(135deg, var(--accent), #ffb067);
+        color: var(--white);
+      }
+
+      .phone-cta .button:hover {
+        background: linear-gradient(135deg, #ff9958, #ffb96d);
+      }
+
+      .hero {
+        overflow: hidden;
+        padding: 76px 0 88px;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        align-items: center;
+        gap: 72px;
+      }
+
+      .eyebrow {
+        margin: 0 0 18px;
+        color: var(--blue);
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h1,
+      h2 {
+        font-family: var(--display);
+        font-weight: 500;
+        letter-spacing: -0.035em;
+        line-height: 1.1;
+      }
+
+      h1 {
+        max-width: 650px;
+        margin-bottom: 24px;
+        font-size: clamp(3rem, 6vw, 5.2rem);
+      }
+
+      h1 span {
+        color: var(--blue);
+        font-style: italic;
+      }
+
+      .hero-copy {
+        max-width: 530px;
+        margin-bottom: 22px;
+        color: var(--muted);
+        font-size: 1.08rem;
+      }
+
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .hero-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .hero-badges span {
+        display: inline-flex;
+        align-items: center;
+        padding: 8px 12px;
+        border: 1px solid rgba(44, 94, 231, 0.14);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.8);
+        color: var(--navy);
+        font-size: 0.78rem;
+        font-weight: 700;
+        box-shadow: 0 8px 18px rgba(29, 36, 48, 0.04);
+      }
+
+      .hero-art {
+        position: relative;
+        display: grid;
+        min-height: 410px;
+        place-items: center;
+      }
+
+      .photo-scene {
+        position: relative;
+        width: min(100%, 420px);
+        height: 430px;
+        border-radius: 32px;
+        background: linear-gradient(180deg, rgba(13, 27, 42, 0.08), rgba(13, 27, 42, 0.04));
+      }
+
+      .photo-card {
+        position: absolute;
+        overflow: hidden;
+        border: 4px solid rgba(255, 255, 255, 0.86);
+        border-radius: 26px;
+        box-shadow: 0 22px 35px rgba(17, 27, 41, 0.12);
+        background-size: cover;
+        background-position: center;
+      }
+
+      .photo-main {
+        inset: 18px 60px 58px 18px;
+        background-image: url('https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=900&q=80');
+      }
+
+      .photo-top {
+        top: 0;
+        right: 18px;
+        width: 125px;
+        height: 130px;
+        background-image: url('https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=700&q=80');
+      }
+
+      .photo-bottom {
+        right: 8px;
+        bottom: 28px;
+        width: 138px;
+        height: 150px;
+        background-image: url('https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=700&q=80');
+      }
+
+      .photo-side {
+        left: 4px;
+        bottom: 36px;
+        width: 96px;
+        height: 112px;
+        background-image: url('https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=700&q=80');
+      }
+
+      .photo-tag {
+        position: absolute;
+        right: 18px;
+        bottom: 10px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.9);
+        color: var(--navy);
+        font-size: 0.72rem;
+        font-weight: 700;
+        box-shadow: 0 10px 20px rgba(17, 27, 41, 0.08);
+      }
+
+      .art-note {
+        position: absolute;
+        right: -2px;
+        bottom: 54px;
+        padding: 13px 18px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--white);
+        box-shadow: 0 10px 35px rgba(32, 37, 31, 0.08);
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+
+      .section {
+        padding: 92px 0;
+      }
+
+      .section-white {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 1));
+      }
+
+      .section-heading {
+        max-width: 620px;
+        margin-bottom: 42px;
+      }
+
+      .section-heading.centered {
+        margin-inline: auto;
+        text-align: center;
+      }
+
+      .section-heading.centered .eyebrow {
+        margin-bottom: 14px;
+      }
+
+      .section-heading.centered > p:last-child {
+        max-width: 580px;
+        margin-inline: auto;
+      }
+
+      .steps-section {
+        background: #fff;
+      }
+
+      .steps-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 22px;
+        counter-reset: steps;
+      }
+
+      .step-card {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: var(--white);
+        box-shadow: 0 18px 36px rgba(13, 27, 42, 0.06);
+        counter-increment: steps;
+      }
+
+      .step-age {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        padding: 7px 11px;
+        border: 1px solid rgba(255, 255, 255, 0.55);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        color: var(--navy);
+        font-size: 0.76rem;
+        font-weight: 750;
+        box-shadow: 0 6px 18px rgba(13, 27, 42, 0.12);
+      }
+
+      .step-photo {
+        display: block;
+        width: 100%;
+        height: 224px;
+        object-fit: cover;
+        object-position: center 36%;
+      }
+
+      .step-body {
+        position: relative;
+        min-height: 170px;
+        padding: 26px 24px 24px;
+      }
+
+      .step-number {
+        display: grid;
+        width: 42px;
+        height: 42px;
+        margin-top: -48px;
+        margin-bottom: 18px;
+        position: relative;
+        place-items: center;
+        border: 4px solid white;
+        border-radius: 50%;
+        background: var(--blue);
+        color: white;
+        font-size: 0.86rem;
+        font-weight: 800;
+      }
+
+      .step-body h3 {
+        margin-bottom: 8px;
+        color: var(--navy);
+        font-size: 1.18rem;
+      }
+
+      .step-body p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.94rem;
+      }
+
+      .eligibility-section {
+        background: linear-gradient(135deg, #eef4ff, #f8fbff 58%, #fff6ef);
+      }
+
+      .eligibility-panel {
+        display: grid;
+        grid-template-columns: 0.9fr 1.1fr;
+        gap: 54px;
+        align-items: center;
+        padding: 48px;
+        border: 1px solid rgba(19, 33, 57, 0.07);
+        border-radius: 28px;
+        background: rgba(255, 255, 255, 0.88);
+        box-shadow: 0 24px 55px rgba(13, 27, 42, 0.07);
+      }
+
+      .eligibility-copy h2 {
+        margin-bottom: 16px;
+        font-size: clamp(2.2rem, 4vw, 3.3rem);
+      }
+
+      .eligibility-copy > p:not(.eyebrow) {
+        margin-bottom: 24px;
+        color: var(--muted);
+      }
+
+      .eligibility-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin: 0 0 26px;
+        padding: 0;
+        list-style: none;
+      }
+
+      .eligibility-list li {
+        display: flex;
+        min-height: 62px;
+        align-items: center;
+        gap: 11px;
+        padding: 13px 14px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: #fff;
+        color: var(--navy);
+        font-size: 0.91rem;
+        font-weight: 650;
+      }
+
+      .eligibility-check {
+        display: grid;
+        flex: 0 0 26px;
+        width: 26px;
+        height: 26px;
+        place-items: center;
+        border-radius: 50%;
+        background: var(--blue-soft);
+        color: var(--blue);
+        font-size: 0.8rem;
+        font-weight: 800;
+      }
+
+      .eligibility-note {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      .eligibility-visual {
+        position: relative;
+        min-height: 380px;
+        overflow: hidden;
+        border-radius: 22px;
+        background: #dce7f5;
+      }
+
+      .eligibility-visual img {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center 38%;
+      }
+
+      .eligibility-caption {
+        position: absolute;
+        right: 18px;
+        bottom: 18px;
+        left: 18px;
+        padding: 16px 18px;
+        border: 1px solid rgba(255, 255, 255, 0.55);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.92);
+        color: var(--navy);
+        font-size: 0.9rem;
+        font-weight: 700;
+        box-shadow: 0 12px 28px rgba(13, 27, 42, 0.12);
+      }
+
+      .service-card {
+        min-height: 260px;
+        padding: 28px;
+        border-color: var(--line);
+        border-radius: 22px;
+        background: #fff;
+        box-shadow: 0 16px 35px rgba(13, 27, 42, 0.05);
+        transition: transform 180ms ease, box-shadow 180ms ease;
+      }
+
+      .service-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 22px 42px rgba(13, 27, 42, 0.09);
+      }
+
+      .service-visual {
+        display: grid;
+        width: 58px;
+        height: 58px;
+        margin-bottom: 22px;
+        place-items: center;
+        border-radius: 18px;
+        background: var(--blue-soft);
+        color: var(--blue);
+      }
+
+      .service-card:nth-child(2) .service-visual {
+        background: var(--accent-soft);
+        color: #c05a1c;
+      }
+
+      .service-card:nth-child(3) .service-visual {
+        background: #e8f5f2;
+        color: #18745f;
+      }
+
+      .service-visual svg {
+        width: 28px;
+        height: 28px;
+        fill: none;
+        stroke: currentColor;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 1.8;
+      }
+
+      .section-heading h2,
+      .about-copy h2,
+      .contact-copy h2 {
+        margin-bottom: 16px;
+        font-size: clamp(2.35rem, 4vw, 3.5rem);
+      }
+
+      .section-heading > p:last-child,
+      .about-copy > p:not(.eyebrow),
+      .contact-copy > p:not(.eyebrow) {
+        color: var(--muted);
+      }
+
+      .service-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .service-card {
+        min-height: 245px;
+        padding: 28px;
+        border: 1px solid rgba(125, 110, 245, 0.08);
+        border-radius: 18px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 255, 1));
+        box-shadow: 0 16px 25px rgba(29, 36, 48, 0.04);
+      }
+
+      .service-number {
+        display: inline-grid;
+        width: 40px;
+        height: 40px;
+        margin-bottom: 30px;
+        place-items: center;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent-soft), #ffe0c8);
+        color: var(--navy);
+        font-size: 0.8rem;
+        font-weight: 800;
+      }
+
+      .service-card h3 {
+        margin-bottom: 10px;
+        font-family: var(--display);
+        font-size: 1.35rem;
+        font-weight: 500;
+      }
+
+      .service-card p {
+        margin-bottom: 0;
+        color: var(--muted);
+        font-size: 0.94rem;
+      }
+
+      .about-grid {
+        display: grid;
+        grid-template-columns: 0.85fr 1.15fr;
+        align-items: center;
+        gap: 80px;
+      }
+
+      .about-visual {
+        display: grid;
+        min-height: 350px;
+        place-items: center;
+        border-radius: 22px;
+        background:
+          radial-gradient(circle at 50% 36%, rgba(122, 215, 255, 0.9) 0 17%, transparent 17.5%),
+          linear-gradient(145deg, #edf4ff, #ebfaff 52%, #eef5ff);
+        box-shadow: inset 0 0 0 1px rgba(29, 36, 48, 0.03);
+      }
+
+      .about-visual img {
+        width: 100%;
+        height: 350px;
+        border-radius: 22px;
+        object-fit: cover;
+        object-position: center 38%;
+      }
+
+      .about-monogram {
+        display: grid;
+        width: 150px;
+        height: 150px;
+        place-items: center;
+        border: 1px solid rgba(44, 94, 231, 0.18);
+        border-radius: 50%;
+        color: var(--blue);
+        font-family: var(--display);
+        font-size: 3.3rem;
+        font-style: italic;
+        background: rgba(255, 255, 255, 0.5);
+      }
+
+      .about-copy h2 {
+        max-width: 560px;
+      }
+
+      .about-copy > p:not(.eyebrow) {
+        margin-bottom: 26px;
+      }
+
+      .values {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 0 0 30px;
+        padding: 0;
+        list-style: none;
+      }
+
+      .values li {
+        padding: 8px 13px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--navy);
+        font-size: 0.86rem;
+      }
+
+      .quote-wrapper {
+        display: grid;
+        grid-template-columns: 0.9fr 1.1fr;
+        gap: 28px;
+        align-items: stretch;
+      }
+
+      .quote-copy,
+      .quote-form,
+      .invoice-summary,
+      .tc-box {
+        border: 1px solid rgba(19, 33, 57, 0.08);
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.82);
+        box-shadow: 0 18px 32px rgba(13, 27, 42, 0.04);
+      }
+
+      .quote-copy {
+        padding: 34px 28px;
+      }
+
+      .quote-copy p:not(.eyebrow) {
+        color: var(--muted);
+      }
+
+      .quote-form {
+        padding: 28px;
+      }
+
+      .invoice-summary {
+        margin-top: 18px;
+        padding: 20px;
+      }
+
+      .invoice-summary h3,
+      .tc-box h3 {
+        margin-bottom: 16px;
+        font-size: 1rem;
+      }
+
+      .summary-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(19, 33, 57, 0.06);
+      }
+
+      .summary-row:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+
+      .summary-row strong {
+        color: var(--navy);
+      }
+
+      .summary-row.total {
+        padding-top: 14px;
+        font-size: 1.1rem;
+        font-weight: 700;
+      }
+
+      .tc-box {
+        margin-top: 18px;
+        padding: 18px 20px;
+      }
+
+      .tc-box ul {
+        margin: 0;
+        padding-left: 18px;
+        color: var(--muted);
+      }
+
+      .tc-box li + li {
+        margin-top: 8px;
+      }
+
+      .field-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .field-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+
+      .field-group label {
+        font-size: 0.84rem;
+        font-weight: 700;
+        color: var(--navy);
+      }
+
+      .field-group input,
+      .field-group select {
+        min-height: 48px;
+        padding: 0 14px;
+        border: 1px solid rgba(19, 33, 57, 0.1);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.9);
+        color: var(--ink);
+        font: inherit;
+      }
+
+      .signature-box {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 150px;
+        padding: 12px;
+        border: 1px solid rgba(19, 33, 57, 0.1);
+        border-radius: 12px;
+        background: #f9fbff;
+      }
+
+      #signature-canvas {
+        width: 100%;
+        height: 150px;
+        border-radius: 10px;
+        background: #ffffff;
+        cursor: crosshair;
+      }
+
+      .signature-actions {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .signature-actions .button {
+        flex: 1;
+      }
+
+      .payment-status {
+        margin-top: 16px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: #eef4fb;
+        color: var(--navy);
+        font-size: 0.92rem;
+      }
+
+      .payment-status[data-state="error"] {
+        background: #fff0ed;
+        color: #8d2f1f;
+      }
+
+      .contact-panel {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 40px;
+        padding: 52px;
+        border-radius: 24px;
+        background: linear-gradient(135deg, var(--navy), var(--navy-soft));
+        color: var(--white);
+        box-shadow: 0 25px 35px rgba(13, 27, 42, 0.18);
+      }
+
+      .contact-copy {
+        max-width: 620px;
+      }
+
+      .contact-copy .eyebrow {
+        color: var(--cyan);
+      }
+
+      .contact-copy h2 {
+        margin-bottom: 12px;
+      }
+
+      .contact-copy > p:not(.eyebrow) {
+        margin-bottom: 0;
+        color: rgb(255 255 255 / 78%);
+      }
+
+      .contact-panel .button {
+        border-color: transparent;
+        background: linear-gradient(135deg, var(--accent), #ffb067);
+        color: var(--white);
+        white-space: nowrap;
+      }
+
+      .contact-panel .button:hover {
+        background: linear-gradient(135deg, #ff9958, #ffb96d);
+      }
+
+      .site-footer {
+        padding: 28px 0;
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+
+      .legal {
+        padding: 36px 0;
+        border-top: 1px solid rgba(29, 36, 48, 0.06);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(245, 250, 255, 1));
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+
+      .legal h2 {
+        margin-bottom: 12px;
+        color: var(--ink);
+        font-family: var(--sans);
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: 0;
+      }
+
+      .legal p {
+        max-width: 760px;
+        margin-bottom: 8px;
+      }
+
+      .footer-content {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px 24px;
+      }
+
+      .footer-content p {
+        margin: 0;
+      }
+
+      .footer-links {
+        display: flex;
+        gap: 20px;
+      }
+
+      .footer-links a {
+        text-decoration: none;
+      }
+
+      .footer-links a:hover {
+        color: var(--blue);
+      }
+
+      @media (max-width: 760px) {
+        .container {
+          width: min(100% - 30px, 560px);
+        }
+
+        .quote-wrapper {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .steps-grid {
+          grid-template-columns: 1fr;
+          max-width: 520px;
+          margin-inline: auto;
+        }
+
+        .step-photo {
+          height: 250px;
+        }
+
+        .eligibility-panel {
+          grid-template-columns: 1fr;
+          gap: 30px;
+          padding: 28px;
+        }
+
+        .eligibility-visual {
+          min-height: 320px;
+        }
+
+        .field-row {
+          grid-template-columns: 1fr;
+        }
+
+        .signature-actions {
+          flex-direction: column;
+        }
+
+        .topbar-inner {
+          justify-content: center;
+          flex-wrap: wrap;
+          gap: 10px 16px;
+          padding: 10px 0;
+        }
+
+        .phone-cta {
+          width: 100%;
+          max-width: 420px;
+          justify-content: space-between;
+        }
+
+        .phone-cta input {
+          width: 100%;
+          min-width: 0;
+        }
+
+        .nav {
+          min-height: auto;
+          justify-content: space-between;
+          padding: 16px 0;
+          gap: 16px;
+        }
+
+        .nav-toggle {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .nav-links {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          display: none;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 16px;
+          padding: 18px 20px 22px;
+          border-top: 1px solid rgba(19, 33, 57, 0.08);
+          background: rgba(255, 255, 255, 0.98);
+          box-shadow: 0 20px 28px rgba(13, 27, 42, 0.06);
+        }
+
+        .nav-links.is-open {
+          display: flex;
+        }
+
+        .nav-links a {
+          width: 100%;
+          font-size: 0.95rem;
+        }
+
+        .nav .button-outline {
+          display: none;
+        }
+
+        .hero {
+          padding: 64px 0 72px;
+        }
+
+        .hero-grid,
+        .about-grid {
+          grid-template-columns: 1fr;
+          gap: 38px;
+        }
+
+        .hero-copy {
+          max-width: 100%;
+        }
+
+        .hero-actions {
+          flex-direction: column;
+        }
+
+        .hero-actions .button {
+          width: 100%;
+        }
+
+        .hero-badges {
+          gap: 8px;
+        }
+
+        .hero-badges span {
+          width: 100%;
+          justify-content: center;
+        }
+
+        .hero-art {
+          min-height: auto;
+          width: 100%;
+        }
+
+        .photo-scene {
+          width: min(100%, 350px);
+          height: 325px;
+        }
+
+        .photo-main {
+          inset: 12px 52px 52px 12px;
+        }
+
+        .photo-top {
+          right: 10px;
+          width: 110px;
+          height: 120px;
+        }
+
+        .photo-bottom {
+          right: 6px;
+          bottom: 18px;
+          width: 120px;
+          height: 130px;
+        }
+
+        .photo-side {
+          left: 2px;
+          bottom: 24px;
+          width: 90px;
+          height: 100px;
+        }
+
+        .art-note {
+          position: static;
+          display: inline-block;
+          margin-top: 18px;
+        }
+
+        .section {
+          padding: 68px 0;
+        }
+
+        .service-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .service-card {
+          min-height: auto;
+        }
+
+        .service-number {
+          margin-bottom: 20px;
+        }
+
+        .about-visual {
+          min-height: 280px;
+        }
+
+        .about-visual img {
+          height: 280px;
+        }
+
+        .eligibility-list {
+          grid-template-columns: 1fr;
+        }
+
+        .contact-panel {
+          grid-template-columns: 1fr;
+          gap: 24px;
+          padding: 32px 26px;
+        }
+
+        .contact-panel .button {
+          justify-self: stretch;
+          width: 100%;
+        }
+      }
+
+      @media (max-width: 420px) {
+        .topbar a {
+          font-size: 0.75rem;
+        }
+
+        .phone-cta {
+          padding-left: 10px;
+          padding-right: 10px;
+          gap: 6px;
+        }
+
+        .phone-cta .button {
+          padding: 0 12px;
+          font-size: 0.74rem;
+        }
+
+        .brand {
+          font-size: 1.15rem;
+        }
+
+        h1 {
+          font-size: clamp(2.35rem, 10vw, 3.1rem);
+        }
+
+        .eligibility-panel {
+          padding: 22px 18px;
+        }
+
+        .step-photo {
+          height: 210px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="topbar-inner container">
+        <a href="#">S'inscrire</a>
+        <a href="#">Connexion</a>
+        <div class="phone-cta" aria-label="Être rappelé">
+          <input type="tel" placeholder="Votre numéro" aria-label="Numéro de téléphone">
+          <button class="button" type="button">Être rappelé(e)</button>
+        </div>
+      </div>
+    </div>
+
+    <header class="site-header">
+      <nav class="nav container" aria-label="Navigation principale">
+        <a class="brand" href="#accueil">Votre Activité</a>
+        <button class="nav-toggle" type="button" aria-expanded="false" aria-label="Ouvrir le menu">
+          <span></span>
+        </button>
+        <ul class="nav-links" id="main-nav">
+          <li><a href="#comment-ca-marche">Comment ça marche</a></li>
+          <li><a href="#eligibilite">Éligibilité</a></li>
+          <li><a href="#services">Services</a></li>
+          <li><a href="#apropos">À propos</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ul>
+        <a class="button button-outline" href="#devis">Remplir le formulaire</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero" id="accueil">
+        <div class="hero-grid container">
+          <div>
+            <p class="eyebrow">Accompagnement ARCE · Clair et personnalisé</p>
+            <h1>Faites avancer votre projet avec <span>un accompagnement serein.</span></h1>
+            <p class="hero-copy">
+              De l’étude de votre situation au suivi de votre dossier, bénéficiez
+              d’un accompagnement humain pour avancer à chaque étape de votre projet.
+            </p>
+            <div class="hero-actions">
+              <a class="button" href="#devis">Remplir le formulaire</a>
+              <a class="button button-outline" href="#comment-ca-marche">Découvrir les étapes</a>
+            </div>
+            <div class="hero-badges" aria-label="Points forts">
+              <span>Conseil personnalisé</span>
+              <span>Suivi de votre dossier</span>
+              <span>Un interlocuteur dédié</span>
+            </div>
+          </div>
+          <div class="hero-art" aria-label="Illustration de clients de différentes générations">
+            <div class="photo-scene" aria-hidden="true">
+              <div class="photo-card photo-main"></div>
+              <div class="photo-card photo-top"></div>
+              <div class="photo-card photo-bottom"></div>
+              <div class="photo-card photo-side"></div>
+              <div class="photo-tag">Tous âges, tous projets</div>
+            </div>
+            <div class="art-note">Accompagnement sur mesure</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section steps-section" id="comment-ca-marche">
+        <div class="container">
+          <div class="section-heading centered">
+            <p class="eyebrow">Simple et transparent</p>
+            <h2>Comment ça marche&nbsp;?</h2>
+            <p>
+              Un parcours clair, avec un accompagnement à chaque étape de votre démarche.
+            </p>
+          </div>
+          <div class="steps-grid">
+            <article class="step-card">
+              <img class="step-photo" src="https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&amp;fit=crop&amp;w=900&amp;q=85" alt="Professionnelle d'une trentaine d'années préparant un dossier sur ordinateur" loading="lazy">
+              <span class="step-age">30–39 ans</span>
+              <div class="step-body">
+                <span class="step-number" aria-label="Étape 1">1</span>
+                <h3>Remplissez le formulaire</h3>
+                <p>Présentez votre situation et votre projet en quelques minutes pour démarrer l’étude de votre dossier.</p>
+              </div>
+            </article>
+            <article class="step-card">
+              <img class="step-photo" src="https://images.unsplash.com/photo-1556761175-b413da4baf72?auto=format&amp;fit=crop&amp;w=900&amp;q=85" alt="Échange professionnel entre un conseiller et une personne d'une quarantaine d'années" loading="lazy">
+              <span class="step-age">40–49 ans</span>
+              <div class="step-body">
+                <span class="step-number" aria-label="Étape 2">2</span>
+                <h3>Prise de contact</h3>
+                <p>Nous échangeons sur vos besoins, vérifions les informations utiles et vous expliquons la suite du parcours.</p>
+              </div>
+            </article>
+            <article class="step-card">
+              <img class="step-photo" src="https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&amp;fit=crop&amp;w=900&amp;q=85" alt="Entrepreneur d'une cinquantaine d'années travaillant sereinement à son projet" loading="lazy">
+              <span class="step-age">50–59 ans</span>
+              <div class="step-body">
+                <span class="step-number" aria-label="Étape 3">3</span>
+                <h3>Je profite de mes aides</h3>
+                <p>Une fois votre dossier traité et vos droits confirmés par les organismes concernés, avancez dans votre projet avec plus de visibilité.</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section eligibility-section" id="eligibilite">
+        <div class="container eligibility-panel">
+          <div class="eligibility-copy">
+            <p class="eyebrow">Votre situation</p>
+            <h2>Vérifiez les critères d’éligibilité.</h2>
+            <p>Les conditions dépendent de votre parcours et du dispositif demandé. Voici les éléments généralement nécessaires à l’étude de votre dossier.</p>
+            <ul class="eligibility-list">
+              <li><span class="eligibility-check" aria-hidden="true">✓</span>Carte d’identité en cours de validité</li>
+              <li><span class="eligibility-check" aria-hidden="true">✓</span>Passeport(s) en cours de validité</li>
+              <li><span class="eligibility-check" aria-hidden="true">✓</span>Carte(s) ou titre(s) de séjour valide(s)</li>
+              <li><span class="eligibility-check" aria-hidden="true">✓</span>Justificatifs de durée de travail</li>
+            </ul>
+            <p class="eligibility-note">La durée d’activité requise varie selon le dispositif et votre situation. Elle sera vérifiée lors de l’étude de votre dossier ; cette liste ne garantit pas l’éligibilité.</p>
+            <a class="button" href="#devis">Remplir le formulaire</a>
+          </div>
+          <div class="eligibility-visual">
+            <img src="https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&amp;fit=crop&amp;w=1000&amp;q=85" alt="Échange convivial autour d'un projet professionnel entre adultes de différentes générations" loading="lazy">
+            <div class="eligibility-caption">Chaque parcours est différent. Parlons du vôtre.</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-white" id="services">
+        <div class="container">
+          <div class="section-heading centered">
+            <p class="eyebrow">Un accompagnement complet</p>
+            <h2>Les services clés en main.</h2>
+            <p>Un accompagnement structuré pour vous aider à avancer avec des repères clairs, du premier échange au suivi.</p>
+          </div>
+          <div class="service-grid">
+            <article class="service-card">
+              <div class="service-visual" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.5 2.8 8.1 7 10 4.2-1.9 7-5.5 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+              </div>
+              <h3>Accompagnement juridique</h3>
+              <p>Repères sur les démarches et aide à la préparation des pièces utiles à votre dossier, selon votre situation.</p>
+            </article>
+            <article class="service-card">
+              <div class="service-visual" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h2m4 0h2m-8 4h2m4 0h2m-8 4h2m4 0h2"/></svg>
+              </div>
+              <h3>Appui comptabilité</h3>
+              <p>Organisation des justificatifs et compréhension des éléments financiers liés à votre projet et à votre activité.</p>
+            </article>
+            <article class="service-card">
+              <div class="service-visual" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h16"/><path d="m7 15 4-4 3 2 5-6"/><path d="M16 7h3v3"/></svg>
+              </div>
+              <h3>Suivi personnalisé</h3>
+              <p>Un point de contact pour suivre l’avancement, répondre à vos questions et vous orienter vers les prochaines étapes.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="apropos">
+        <div class="about-grid container">
+          <div class="about-visual" aria-hidden="true">
+            <img src="https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&amp;fit=crop&amp;w=1000&amp;q=85" alt="" loading="lazy">
+          </div>
+          <div class="about-copy">
+            <p class="eyebrow">À propos</p>
+            <h2>Une relation de confiance, avant tout.</h2>
+            <p>
+              Je mets mon expérience et mon engagement au service de vos
+              projets. En tant qu'entrepreneur indépendant, je privilégie les
+              échanges directs, la disponibilité et des solutions adaptées à
+              votre situation.
+            </p>
+            <ul class="values" aria-label="Mes engagements">
+              <li>Écoute attentive</li>
+              <li>Devis transparent</li>
+              <li>Travail soigné</li>
+            </ul>
+            <a class="button button-outline" href="#contact">Faire connaissance</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="devis">
+        <div class="container quote-wrapper">
+          <div class="quote-copy">
+            <p class="eyebrow">Devis & signature</p>
+            <h2>Validez votre devis en quelques clics.</h2>
+            <p>
+              Le devis est calculé automatiquement, la commission de 12 % est indiquée
+              clairement et le paiement est préparé dès la validation de la signature.
+            </p>
+            <ul class="values" aria-label="Conditions du devis">
+              <li>Commission de 12 % payable dès le premier versement</li>
+              <li>La totalité de la commission est due et réglée en un seul versement dès le premier déblocage de l'ARCE, soldant ainsi l'ensemble des frais de notre prestation.</li>
+              <li>Règlement final pour clôturer le dossier</li>
+            </ul>
+
+            <div class="invoice-summary">
+              <h3>Récapitulatif du devis</h3>
+              <div class="summary-row">
+                <span>Montant total de l'aide</span>
+                <strong id="summary-amount">0 €</strong>
+              </div>
+              <div class="summary-row">
+                <span>Commission 12 %</span>
+                <strong id="summary-commission">0 €</strong>
+              </div>
+              <div class="summary-row">
+                <span>Premier versement du client</span>
+                <strong id="summary-first-payment">0 €</strong>
+              </div>
+              <div class="summary-row total">
+                <span>Somme totale à payer</span>
+                <strong id="summary-total">0 €</strong>
+              </div>
+            </div>
+
+            <div class="tc-box">
+              <h3>Conditions générales</h3>
+              <ul>
+                <li>La commission de 12 % est payable dès le premier versement.</li>
+                <li>La totalité de la commission est due et réglée en un seul versement dès le premier déblocage de l'ARCE, soldant ainsi l'ensemble des frais de notre prestation.</li>
+                <li>Cette commission de 12 % n'est applicable qu'au premier versement et constitue le règlement final pour clôturer le dossier.</li>
+                <li>Le devis est valable 30 jours à compter de sa date d'émission.</li>
+                <li>Après confirmation du paiement par Stripe, le devis signé et la facture PDF sont envoyés par email.</li>
+              </ul>
+            </div>
+          </div>
+
+          <form class="quote-form" id="quote-form" novalidate>
+            <div class="field-row">
+              <div class="field-group">
+                <label for="client-name">Nom</label>
+                <input id="client-name" name="client-name" type="text" required>
+              </div>
+              <div class="field-group">
+                <label for="client-email">Email</label>
+                <input id="client-email" name="client-email" type="email" required>
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field-group">
+                <label for="service-type">Service</label>
+                <select id="service-type" name="service-type">
+                  <option value="1200">Prestation principale — 1 200 €</option>
+                  <option value="800">Prestation complémentaire — 800 €</option>
+                  <option value="1500">Accompagnement premium — 1 500 €</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="quote-total">Montant</label>
+                <input id="quote-total" name="quote-total" type="number" min="0" step="1" required>
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label>Signature électronique</label>
+              <div class="signature-box">
+                <canvas id="signature-canvas" width="420" height="150" aria-label="Zone de signature"></canvas>
+              </div>
+            </div>
+
+            <div class="signature-actions">
+              <button class="button button-outline" type="button" id="clear-form">Effacer le formulaire</button>
+              <button class="button" type="submit">Signer et payer la commission</button>
+            </div>
+            <p class="payment-status" id="payment-status" role="status" aria-live="polite" hidden></p>
+          </form>
+        </div>
+      </section>
+
+      <section class="section section-white" id="contact">
+        <div class="container">
+          <div class="contact-panel">
+            <div class="contact-copy">
+              <p class="eyebrow">Contact</p>
+              <h2>Parlons de votre projet.</h2>
+              <p>
+                Expliquez-moi votre besoin : je vous répondrai pour étudier
+                ensemble la meilleure solution.
+              </p>
+            </div>
+            <a class="button" href="mailto:contact@facilipro.fr">
+              contact@facilipro.fr
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="legal" id="mentions-legales">
+        <div class="container">
+          <h2>Mentions légales</h2>
+          <p><strong>Éditeur du site :</strong> Renaud Pierre Jacques Devevey, entrepreneur individuel, nom commercial Facilipro.</p>
+          <p><strong>Adresse professionnelle :</strong> Route de Belcastel, 12390 Mayran, France.</p>
+          <p><strong>Numéro SIRET :</strong> 10945831500016</p>
+          <p><strong>Contact :</strong> <a href="mailto:contact@facilipro.fr">contact@facilipro.fr</a></p>
+          <p><strong>Directeur de la publication :</strong> Renaud Pierre Jacques Devevey.</p>
+          <p><strong>Hébergeur :</strong> Vercel Inc. — <a href="https://vercel.com" target="_blank" rel="noopener noreferrer">vercel.com</a>. Adresse et coordonnées de l’hébergeur à confirmer avec Vercel avant publication.</p>
+          <p><strong>Propriété intellectuelle :</strong> les contenus et éléments graphiques de ce site sont à compléter ou vérifier selon leurs titulaires de droits respectifs.</p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-content container">
+        <p>© 2026 Votre Activité · Entrepreneur indépendant</p>
+        <div class="footer-links">
+          <a href="mailto:contact@facilipro.fr">contact@facilipro.fr</a>
+          <a href="#mentions-legales">Mentions légales</a>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      const toggleButton = document.querySelector('.nav-toggle');
+      const navLinks = document.querySelector('.nav-links');
+
+      if (toggleButton && navLinks) {
+        toggleButton.addEventListener('click', () => {
+          const isOpen = navLinks.classList.toggle('is-open');
+          toggleButton.setAttribute('aria-expanded', String(isOpen));
+        });
+
+        navLinks.querySelectorAll('a').forEach((link) => {
+          link.addEventListener('click', () => {
+            navLinks.classList.remove('is-open');
+            toggleButton.setAttribute('aria-expanded', 'false');
+          });
+        });
+      }
+
+      const formatMoney = (value) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(value);
+
+      const serviceSelect = document.getElementById('service-type');
+      const quoteTotalInput = document.getElementById('quote-total');
+      const summaryAmount = document.getElementById('summary-amount');
+      const summaryCommission = document.getElementById('summary-commission');
+      const summaryFirstPayment = document.getElementById('summary-first-payment');
+      const summaryTotal = document.getElementById('summary-total');
+      const quoteForm = document.getElementById('quote-form');
+      const paymentStatus = document.getElementById('payment-status');
+      const submitButton = quoteForm.querySelector('button[type="submit"]');
+
+      const updateTotals = () => {
+        const baseValue = Number(quoteTotalInput.value || 0);
+        const commission = baseValue * 0.12;
+        const firstPayment = commission;
+        const total = firstPayment;
+
+        summaryAmount.textContent = formatMoney(baseValue);
+        summaryCommission.textContent = formatMoney(commission);
+        summaryFirstPayment.textContent = formatMoney(firstPayment);
+        summaryTotal.textContent = formatMoney(total);
+      };
+
+      // La commission est calculée sur le montant total de l'aide selon la règle : 12 % du montant total, payable dès le premier versement.
+
+      serviceSelect.addEventListener('change', () => {
+        quoteTotalInput.value = serviceSelect.value;
+        updateTotals();
+      });
+
+      quoteTotalInput.addEventListener('input', updateTotals);
+      updateTotals();
+
+      const canvas = document.getElementById('signature-canvas');
+      const ctx = canvas.getContext('2d');
+      let isDrawing = false;
+
+      const resizeCanvas = () => {
+        const ratio = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * ratio;
+        canvas.height = rect.height * ratio;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(ratio, ratio);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, rect.width, rect.height);
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#17212f';
+      };
+
+      const getPosition = (event) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        return { x, y };
+      };
+
+      canvas.addEventListener('pointerdown', (event) => {
+        isDrawing = true;
+        const position = getPosition(event);
+        ctx.beginPath();
+        ctx.moveTo(position.x, position.y);
+        ctx.lineTo(position.x, position.y);
+        ctx.stroke();
+      });
+
+      canvas.addEventListener('pointermove', (event) => {
+        if (!isDrawing) return;
+        const position = getPosition(event);
+        ctx.lineTo(position.x, position.y);
+        ctx.stroke();
+      });
+
+      canvas.addEventListener('pointerup', () => {
+        isDrawing = false;
+      });
+
+      canvas.addEventListener('pointerleave', () => {
+        isDrawing = false;
+      });
+
+      const hasSignature = () => {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        for (let i = 0; i < imageData.length; i += 4) {
+          const red = imageData[i];
+          const green = imageData[i + 1];
+          const blue = imageData[i + 2];
+          const alpha = imageData[i + 3];
+          if (alpha > 0 && !(red === 255 && green === 255 && blue === 255)) {
+            return true;
+          }
+        }
+        return false;
+      };
+
+      document.getElementById('clear-form').addEventListener('click', () => {
+        quoteForm.reset();
+        isDrawing = false;
+        resizeCanvas();
+        updateTotals();
+        paymentStatus.hidden = true;
+        paymentStatus.removeAttribute('data-state');
+        paymentStatus.textContent = '';
+        submitButton.disabled = false;
+      });
+
+      quoteForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!quoteForm.reportValidity()) return;
+        const formInputs = new FormData(quoteForm);
+        if (!hasSignature()) {
+          paymentStatus.hidden = false;
+          paymentStatus.dataset.state = 'error';
+          paymentStatus.textContent = 'Veuillez signer le devis avant de poursuivre vers le paiement.';
+          return;
+        }
+
+        paymentStatus.hidden = false;
+        paymentStatus.dataset.state = 'pending';
+        paymentStatus.textContent = 'Préparation sécurisée du paiement…';
+        submitButton.disabled = true;
+
+        try {
+          const response = await fetch('/api/checkout-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              clientName: formInputs.get('client-name'),
+              clientEmail: formInputs.get('client-email'),
+              service: serviceSelect.selectedOptions[0].textContent.trim(),
+              aidAmount: formInputs.get('quote-total'),
+              signature: canvas.toDataURL('image/png')
+            })
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Impossible de créer la session de paiement.');
+          window.location.assign(result.checkoutUrl);
+        } catch (error) {
+          paymentStatus.dataset.state = 'error';
+          paymentStatus.textContent = error.message || 'Une erreur est survenue lors de la préparation du paiement.';
+          submitButton.disabled = false;
+        }
+      });
+
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+
+      const paymentParams = new URLSearchParams(window.location.search);
+      const checkoutSessionId = paymentParams.get('session_id');
+      if (paymentParams.get('payment') === 'success' && checkoutSessionId) {
+        paymentStatus.hidden = false;
+        paymentStatus.textContent = 'Paiement terminé. Vérification auprès de Stripe…';
+        let attempts = 0;
+        const checkPayment = async () => {
+          try {
+            const response = await fetch('/api/payment-status?session_id=' + encodeURIComponent(checkoutSessionId));
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Vérification du paiement impossible.');
+            if (result.paymentStatus === 'paid' && result.documentsSent) {
+              paymentStatus.textContent = 'Paiement confirmé. Le devis signé et la facture ont été envoyés par email.';
+              return;
+            }
+            if (result.paymentStatus === 'paid') {
+              paymentStatus.textContent = 'Paiement confirmé. L’envoi du devis signé et de la facture est en cours.';
+            } else {
+              paymentStatus.textContent = 'Le paiement est en cours de confirmation par Stripe.';
+            }
+            attempts += 1;
+            if (attempts < 12) window.setTimeout(checkPayment, 2500);
+          } catch (error) {
+            paymentStatus.dataset.state = 'error';
+            paymentStatus.textContent = error.message || 'Une erreur est survenue lors de la vérification du paiement.';
+          }
+        };
+        checkPayment();
+      } else if (paymentParams.get('payment') === 'cancelled') {
+        paymentStatus.hidden = false;
+        paymentStatus.textContent = 'Paiement annulé. Aucun document n’a été envoyé.';
+      }
+    </script>
+  </body>
+</html>
