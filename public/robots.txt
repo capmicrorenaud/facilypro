@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin.html
 Disallow: /api/
 
-Sitemap: https://facilipro.fr/sitemap.xml
+Sitemap: https://www.facilepro.fr/sitemap.xml
