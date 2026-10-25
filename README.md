@@ -10,6 +10,14 @@ Après connexion, les devis du compte sont retrouvés à partir de l’adresse e
 
 Le projet contient `sitemap.xml` et `robots.txt`. Après avoir déployé le site sur son domaine public et vérifié que ces deux fichiers y sont servis, soumettez `https://facilipro.fr/sitemap.xml` dans la rubrique « Sitemaps » de Google Search Console. Adaptez leur domaine si le domaine public du site change.
 
+## Dossier ARCE et pièces justificatives
+
+Dans l’espace client, le client renseigne ses jours restants, son allocation journalière brute et sa date de référence (début d’activité). Le calculateur applique les règles de service-public.gouv.fr (fiche F15252) : 60 % du capital restant des droits ARE, moins 3 % de participation aux retraites complémentaires, versés en deux moitiés à 6 mois d’intervalle ; la commission FacilePro est de 12 % de l’ARCE estimée. Un lien mène au modèle officiel de déclaration de non-condamnation et de filiation (RCS/RNE).
+
+Le client peut déposer trois pièces (pièce d’identité, attestation de droits France Travail, justificatif du reliquat ARE) : PDF, JPEG ou PNG, 4 Mo maximum, format vérifié sur le contenu du fichier. Les fichiers sont chiffrés en AES-256-GCM avec `DOCUMENTS_ENCRYPTION_KEY` avant d’être stockés dans PostgreSQL, accessibles seulement au client et aux comptes listés dans `ADMIN_EMAILS`, et chaque accès est inscrit dans `document_access_log`. Ils sont supprimés après `DOCUMENTS_RETENTION_DAYS` jours (90 par défaut) par une tâche Vercel Cron quotidienne (`/api/cron/purge-documents`, protégée par `CRON_SECRET`), à la clôture du dossier par un administrateur, ou par le client lui-même. Aucun document n’est envoyé par email : la demande de pièces manquantes envoie seulement une invitation à se connecter.
+
+Le dépôt reste fermé tant que `DOCUMENTS_UPLOAD_ENABLED` ne vaut pas `true`. Le tableau de bord administrateur est disponible sur `/admin.html` pour un compte vérifié listé dans `ADMIN_EMAILS`.
+
 ## Démarrage
 
 1. Installer Node.js 20 ou une version ultérieure.

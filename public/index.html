@@ -1026,6 +1026,153 @@
         font-size: 0.9rem;
       }
 
+      .admin-link {
+        margin-top: 10px;
+      }
+
+      .admin-link[hidden],
+      .dossier-requests[hidden],
+      .dossier-notice[hidden] {
+        display: none;
+      }
+
+      .dossier-block {
+        margin-top: 32px;
+        padding-top: 28px;
+        border-top: 1px solid var(--line);
+      }
+
+      .dossier-block h3 {
+        margin: 24px 0 12px;
+      }
+
+      .dossier-block h3:first-child {
+        margin-top: 0;
+      }
+
+      .dossier-form .button {
+        width: 100%;
+      }
+
+      .dossier-hint {
+        margin: 8px 0 16px;
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+
+      .dossier-notice,
+      .dossier-requests {
+        margin: 0 0 16px;
+        padding: 14px 16px;
+        border-radius: 12px;
+        background: var(--accent-soft);
+        color: var(--navy);
+        font-size: 0.92rem;
+      }
+
+      .dossier-requests p {
+        margin: 4px 0;
+      }
+
+      .arce-results {
+        display: grid;
+        gap: 6px;
+        margin: 8px 0 0;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: #fff;
+      }
+
+      .arce-results div {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 0.92rem;
+      }
+
+      .arce-results dt {
+        color: var(--muted);
+      }
+
+      .arce-results dd {
+        margin: 0;
+        font-weight: 600;
+        text-align: right;
+        white-space: nowrap;
+      }
+
+      .arce-results .arce-total,
+      .arce-results .arce-commission {
+        padding-top: 8px;
+        border-top: 1px solid var(--line);
+      }
+
+      .arce-results .arce-total dd {
+        color: var(--blue);
+      }
+
+      .dossier-documents {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .dossier-document {
+        display: grid;
+        gap: 8px;
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: #fff;
+      }
+
+      .dossier-document strong {
+        display: block;
+      }
+
+      .dossier-document p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+
+      .dossier-document-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .dossier-document-actions .button {
+        padding-block: 8px;
+        font-size: 0.86rem;
+      }
+
+      .dossier-document input[type="file"] {
+        max-width: 100%;
+        font-size: 0.86rem;
+      }
+
+      .dossier-official {
+        margin-top: 24px;
+        padding: 16px;
+        border-radius: 14px;
+        background: var(--blue-soft);
+      }
+
+      .dossier-official p {
+        margin: 0 0 12px;
+        font-size: 0.92rem;
+      }
+
+      .dossier-official .button {
+        white-space: normal;
+        text-align: center;
+      }
+
       .contact-panel {
         display: grid;
         grid-template-columns: 1fr auto;
@@ -1619,6 +1766,69 @@
             <ul class="account-quotes" id="account-quotes" aria-live="polite"></ul>
             <p class="account-status" id="quotes-status" role="status" aria-live="polite" hidden></p>
             <a class="button" href="#devis">Demander un devis</a>
+            <a class="button button-outline admin-link" id="admin-link" href="/admin.html" hidden>Tableau de bord administrateur</a>
+
+            <div class="dossier-block">
+              <h3>Mon dossier ARCE</h3>
+              <div class="dossier-requests" id="dossier-requests" hidden></div>
+
+              <form class="dossier-form" id="dossier-form" novalidate>
+                <div class="field-row">
+                  <div class="field-group">
+                    <label for="dossier-days">Jours restants (ARE)</label>
+                    <input id="dossier-days" name="remainingDays" type="number" min="1" max="1100" step="1" inputmode="numeric" required>
+                  </div>
+                  <div class="field-group">
+                    <label for="dossier-allowance">Allocation journalière BRUTE (€)</label>
+                    <input id="dossier-allowance" name="dailyAllowance" type="number" min="0.01" max="500" step="0.01" inputmode="decimal" required>
+                  </div>
+                </div>
+                <div class="field-group">
+                  <label for="dossier-date">Date de référence (début d’activité)</label>
+                  <input id="dossier-date" name="referenceDate" type="date" required>
+                </div>
+                <p class="dossier-hint">Ces informations figurent sur votre attestation de droits et votre espace France Travail.</p>
+
+                <dl class="arce-results" id="arce-results">
+                  <div><dt>Reliquat de droits ARE</dt><dd id="arce-rights">—</dd></div>
+                  <div><dt>ARCE brute (60 %)</dt><dd id="arce-gross">—</dd></div>
+                  <div><dt>Retenue retraite complémentaire (3 %)</dt><dd id="arce-deduction">—</dd></div>
+                  <div class="arce-total"><dt>ARCE estimée</dt><dd id="arce-net">—</dd></div>
+                  <div><dt>1er versement (50 %)</dt><dd id="arce-first">—</dd></div>
+                  <div><dt>2e versement (50 %)</dt><dd id="arce-second">—</dd></div>
+                  <div class="arce-commission"><dt>Notre commission (12 % de l’ARCE)</dt><dd id="arce-commission">—</dd></div>
+                </dl>
+                <p class="dossier-hint">
+                  Estimation indicative selon les règles publiées sur
+                  <a href="https://www.service-public.gouv.fr/particuliers/vosdroits/F15252" target="_blank" rel="noopener noreferrer">Service-Public.fr</a> :
+                  60 % du capital restant des droits ARE, moins 3 % pour les retraites complémentaires, versés en deux fois à 6 mois d’intervalle.
+                  Le 2e versement suppose que l’activité se poursuit et que vous n’êtes pas en CDI à temps plein.
+                  Seule la décision de France Travail fait foi.
+                </p>
+                <button class="button" type="submit">Enregistrer mon dossier</button>
+                <p class="account-status" id="dossier-status" role="status" aria-live="polite" hidden></p>
+              </form>
+
+              <h3>Mes pièces justificatives</h3>
+              <p class="dossier-notice" id="uploads-closed" hidden>
+                Le dépôt sécurisé des documents ouvrira prochainement.
+                <strong>N’envoyez aucun document d’identité par email.</strong>
+              </p>
+              <ul class="dossier-documents" id="dossier-documents" aria-live="polite"></ul>
+              <p class="dossier-hint" id="documents-hint">
+                PDF, JPEG ou PNG, 4 Mo maximum. Vos documents sont chiffrés, visibles uniquement par vous et les administrateurs FacilePro,
+                puis supprimés automatiquement après <span id="retention-days">90</span> jours.
+              </p>
+              <p class="account-status" id="documents-status" role="status" aria-live="polite" hidden></p>
+
+              <div class="dossier-official">
+                <h3>Immatriculation RCS / RNE</h3>
+                <p>Pour immatriculer votre entreprise, remplissez le modèle officiel de déclaration de non-condamnation et de filiation :</p>
+                <a class="button button-outline" href="https://www.service-public.gouv.fr/simulateur/calcul/DeclarationNonCondamnationEtFiliation" target="_blank" rel="noopener noreferrer">
+                  Déclaration de non-condamnation et de filiation (Service-Public.fr)
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -1749,8 +1959,9 @@
         <div class="container">
           <h2>Politique de confidentialité</h2>
           <p><strong>Responsable du traitement :</strong> Renaud Pierre Jacques Devevey (FacilePro), Route de Belcastel, 12390 Mayran — <a href="mailto:contact@facilipro.fr">contact@facilipro.fr</a>.</p>
-          <p><strong>Données collectées :</strong> numéro de téléphone (demande de rappel) ; nom, adresse email, prestation, montant de l’aide et signature (devis) ; adresse email et mot de passe chiffré (espace client).</p>
-          <p><strong>Finalités et bases légales :</strong> vous rappeler à votre demande (mesures précontractuelles), établir le devis, encaisser la commission et émettre la facture (exécution du contrat et obligations comptables), gérer votre espace client (exécution du contrat).</p>
+          <p><strong>Données collectées :</strong> numéro de téléphone (demande de rappel) ; nom, adresse email, prestation, montant de l’aide et signature (devis) ; adresse email et mot de passe chiffré (espace client) ; jours restants, allocation journalière et date de référence (dossier ARCE) ; pièce d’identité, attestation de droits France Travail et justificatif du reliquat ARE (pièces justificatives).</p>
+          <p><strong>Pièces justificatives :</strong> elles sont déposées uniquement depuis l’espace client, chiffrées (AES-256) avant stockage, accessibles seulement à vous et aux administrateurs FacilePro autorisés, chaque consultation étant journalisée. Elles ne sont jamais envoyées ni demandées par email. Elles sont supprimées automatiquement 90 jours après leur dépôt, ou dès la clôture de votre dossier ; vous pouvez les supprimer vous-même à tout moment.</p>
+          <p><strong>Finalités et bases légales :</strong> vous rappeler à votre demande (mesures précontractuelles), établir le devis, encaisser la commission et émettre la facture (exécution du contrat et obligations comptables), gérer votre espace client et préparer votre dossier ARCE (exécution du contrat).</p>
           <p><strong>Destinataires :</strong> uniquement FacilePro et ses prestataires techniques : Stripe (paiement), Vercel (hébergement), Neon (base de données) et le fournisseur d’email. Certains sont situés aux États-Unis ; les transferts sont encadrés par les clauses contractuelles types de la Commission européenne ou le Data Privacy Framework.</p>
           <p><strong>Durées de conservation :</strong> demandes de rappel : 3 ans maximum ; devis et factures : 10 ans (obligation comptable) ; compte client : jusqu’à sa suppression sur demande.</p>
           <p><strong>Cookies :</strong> le site n’utilise qu’un cookie de session, strictement nécessaire à la connexion à l’espace client. Aucun cookie publicitaire ou de mesure d’audience n’est déposé.</p>
@@ -1849,6 +2060,8 @@
         accountAuthPanel.hidden = true;
         accountDashboard.hidden = false;
         document.getElementById('account-email').textContent = email;
+        loadDossier();
+        refreshAdminLink();
         quotesStatus.hidden = true;
         const list = document.getElementById('account-quotes');
         list.replaceChildren();
@@ -1881,6 +2094,202 @@
           quotesStatus.hidden = false;
           quotesStatus.dataset.state = 'error';
           quotesStatus.textContent = error.message || 'Impossible de charger vos devis.';
+        }
+      };
+
+      // Même calcul que computeArce() côté serveur (montants en centimes).
+      const computeArce = (remainingDays, dailyAllowanceCents, referenceDate) => {
+        const remainingRightsCents = remainingDays * dailyAllowanceCents;
+        const grossCapitalCents = Math.round(remainingRightsCents * 0.6);
+        const retirementDeductionCents = Math.round(grossCapitalCents * 0.03);
+        const netCapitalCents = grossCapitalCents - retirementDeductionCents;
+        const firstPaymentCents = Math.round(netCapitalCents / 2);
+        let secondPaymentDate = '';
+        if (referenceDate) {
+          const date = new Date(`${referenceDate}T00:00:00Z`);
+          date.setUTCMonth(date.getUTCMonth() + 6);
+          secondPaymentDate = date.toISOString().slice(0, 10);
+        }
+        return {
+          remainingRightsCents,
+          grossCapitalCents,
+          retirementDeductionCents,
+          netCapitalCents,
+          firstPaymentCents,
+          firstPaymentDate: referenceDate,
+          secondPaymentCents: netCapitalCents - firstPaymentCents,
+          secondPaymentDate,
+          commissionCents: Math.round(netCapitalCents * 0.12)
+        };
+      };
+
+      const dossierForm = document.getElementById('dossier-form');
+      const dossierStatus = document.getElementById('dossier-status');
+      const documentsStatus = document.getElementById('documents-status');
+      const formatDate = (isoDate) => isoDate ? new Date(isoDate.length === 10 ? `${isoDate}T00:00:00` : isoDate).toLocaleDateString('fr-FR') : '';
+
+      const setStatus = (element, message, isError = false) => {
+        element.hidden = !message;
+        element.textContent = message;
+        if (isError) element.dataset.state = 'error';
+        else element.removeAttribute('data-state');
+      };
+
+      const renderEstimate = () => {
+        const days = Number(dossierForm.elements.remainingDays.value);
+        const allowance = Number(String(dossierForm.elements.dailyAllowance.value).replace(',', '.'));
+        const referenceDate = dossierForm.elements.referenceDate.value;
+        const valid = Number.isInteger(days) && days > 0 && allowance > 0;
+        const estimate = valid ? computeArce(days, Math.round(allowance * 100), referenceDate) : null;
+        const money = (cents) => estimate ? formatMoney(cents / 100) : '—';
+        document.getElementById('arce-rights').textContent = money(estimate?.remainingRightsCents);
+        document.getElementById('arce-gross').textContent = money(estimate?.grossCapitalCents);
+        document.getElementById('arce-deduction').textContent = estimate ? `− ${money(estimate.retirementDeductionCents)}` : '—';
+        document.getElementById('arce-net').textContent = money(estimate?.netCapitalCents);
+        document.getElementById('arce-first').textContent = estimate
+          ? `${money(estimate.firstPaymentCents)}${referenceDate ? ` · vers le ${formatDate(referenceDate)}` : ''}` : '—';
+        document.getElementById('arce-second').textContent = estimate
+          ? `${money(estimate.secondPaymentCents)}${estimate.secondPaymentDate ? ` · vers le ${formatDate(estimate.secondPaymentDate)}` : ''}` : '—';
+        document.getElementById('arce-commission').textContent = estimate ? `${money(estimate.commissionCents)} au 1er versement` : '—';
+      };
+      dossierForm.addEventListener('input', renderEstimate);
+
+      dossierForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!dossierForm.reportValidity()) return;
+        setStatus(dossierStatus, 'Enregistrement…');
+        try {
+          const response = await fetch('/api/account/dossier', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              remainingDays: Number(dossierForm.elements.remainingDays.value),
+              dailyAllowance: dossierForm.elements.dailyAllowance.value,
+              referenceDate: dossierForm.elements.referenceDate.value
+            })
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Impossible d’enregistrer votre dossier.');
+          setStatus(dossierStatus, 'Dossier enregistré.');
+        } catch (error) {
+          setStatus(dossierStatus, error.message, true);
+        }
+      });
+
+      const uploadDocument = async (kind, input) => {
+        const file = input.files[0];
+        if (!file) return;
+        if (file.size > 4 * 1024 * 1024) {
+          setStatus(documentsStatus, 'Fichier trop volumineux : 4 Mo maximum.', true);
+          input.value = '';
+          return;
+        }
+        setStatus(documentsStatus, 'Envoi et chiffrement en cours…');
+        try {
+          const response = await fetch(`/api/account/documents?kind=${encodeURIComponent(kind)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/octet-stream' },
+            body: file
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Impossible de déposer le document.');
+          setStatus(documentsStatus, result.message);
+          await loadDossier(true);
+        } catch (error) {
+          setStatus(documentsStatus, error.message, true);
+        } finally {
+          input.value = '';
+        }
+      };
+
+      const deleteDocument = async (id) => {
+        if (!window.confirm('Supprimer définitivement ce document ?')) return;
+        try {
+          const response = await fetch(`/api/account/documents/${encodeURIComponent(id)}`, { method: 'DELETE' });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Impossible de supprimer le document.');
+          setStatus(documentsStatus, result.message);
+          await loadDossier(true);
+        } catch (error) {
+          setStatus(documentsStatus, error.message, true);
+        }
+      };
+
+      const loadDossier = async (keepStatus = false) => {
+        if (!keepStatus) setStatus(documentsStatus, '');
+        try {
+          const response = await fetch('/api/account/dossier');
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Impossible de charger votre dossier.');
+
+          if (result.dossier) {
+            dossierForm.elements.remainingDays.value = result.dossier.remainingDays;
+            dossierForm.elements.dailyAllowance.value = (result.dossier.dailyAllowanceCents / 100).toFixed(2);
+            dossierForm.elements.referenceDate.value = result.dossier.referenceDate;
+          }
+          renderEstimate();
+
+          const requestsBox = document.getElementById('dossier-requests');
+          const openRequests = result.requests.filter((request) => !request.resolvedAt);
+          requestsBox.replaceChildren();
+          requestsBox.hidden = openRequests.length === 0;
+          openRequests.forEach((request) => {
+            const line = document.createElement('p');
+            line.textContent = `Pièces demandées le ${formatDate(request.createdAt)} : ${request.labels.join(', ')}${request.message ? ` — ${request.message}` : ''}`;
+            requestsBox.append(line);
+          });
+
+          document.getElementById('uploads-closed').hidden = result.uploadsEnabled;
+          document.getElementById('retention-days').textContent = result.retentionDays;
+          const list = document.getElementById('dossier-documents');
+          list.replaceChildren();
+          Object.entries(result.documentKinds).forEach(([kind, label]) => {
+            const document_ = result.documents.find((item) => item.kind === kind);
+            const item = document.createElement('li');
+            item.className = 'dossier-document';
+            const title = document.createElement('strong');
+            title.textContent = label;
+            const state = document.createElement('p');
+            state.textContent = document_
+              ? `Déposé le ${formatDate(document_.uploadedAt)} · suppression automatique le ${formatDate(document_.expiresAt)}`
+              : 'Pièce manquante';
+            const actions = document.createElement('div');
+            actions.className = 'dossier-document-actions';
+            if (document_) {
+              const download = document.createElement('a');
+              download.className = 'button button-outline';
+              download.href = `/api/account/documents/${encodeURIComponent(document_.id)}`;
+              download.textContent = 'Télécharger';
+              const remove = document.createElement('button');
+              remove.type = 'button';
+              remove.className = 'button button-outline';
+              remove.textContent = 'Supprimer';
+              remove.addEventListener('click', () => deleteDocument(document_.id));
+              actions.append(download, remove);
+            }
+            if (result.uploadsEnabled) {
+              const input = document.createElement('input');
+              input.type = 'file';
+              input.accept = 'application/pdf,image/jpeg,image/png';
+              input.setAttribute('aria-label', `${document_ ? 'Remplacer' : 'Déposer'} : ${label}`);
+              input.addEventListener('change', () => uploadDocument(kind, input));
+              actions.append(input);
+            }
+            item.append(title, state, actions);
+            list.append(item);
+          });
+        } catch (error) {
+          setStatus(documentsStatus, error.message || 'Impossible de charger votre dossier.', true);
+        }
+      };
+
+      const refreshAdminLink = async () => {
+        try {
+          const response = await fetch('/api/account/me');
+          const result = await response.json();
+          document.getElementById('admin-link').hidden = !(response.ok && result.isAdmin);
+        } catch {
+          document.getElementById('admin-link').hidden = true;
         }
       };
 

@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Administration | FacilePro</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #17212f;
+        --muted: #5c6778;
+        --white: #ffffff;
+        --navy: #0d1b2a;
+        --blue: #2c5ee7;
+        --blue-soft: #eaf0ff;
+        --line: #dfe8f5;
+        --accent-soft: #fff0e8;
+        --danger: #8d2f1f;
+        --danger-soft: #fff0ed;
+        --sans: "Segoe UI", Arial, sans-serif;
+      }
+
+      *, *::before, *::after { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        background: #f3f6fb;
+        color: var(--ink);
+        font-family: var(--sans);
+        line-height: 1.5;
+      }
+
+      header {
+        background: var(--navy);
+        color: var(--white);
+      }
+
+      .container {
+        width: min(1120px, calc(100% - 32px));
+        margin-inline: auto;
+      }
+
+      .header-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        min-height: 64px;
+      }
+
+      header a { color: var(--white); }
+
+      h1 { margin: 0; font-size: 1.2rem; }
+      h2 { margin: 0 0 12px; font-size: 1.1rem; }
+      h3 { margin: 20px 0 8px; font-size: 1rem; }
+
+      main { padding: 24px 0 48px; }
+
+      .panel {
+        margin-bottom: 20px;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--white);
+      }
+
+      .status {
+        margin: 0 0 16px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: var(--blue-soft);
+      }
+
+      .status[data-state="error"] { background: var(--danger-soft); color: var(--danger); }
+      [hidden] { display: none !important; }
+
+      .table-wrap { overflow-x: auto; }
+
+      table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+      th, td { padding: 10px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+      th { color: var(--muted); font-weight: 600; }
+      td { overflow-wrap: anywhere; }
+
+      .tag {
+        display: inline-block;
+        margin: 2px 4px 2px 0;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        font-size: 0.8rem;
+      }
+
+      .tag-ok { background: #e6f6ec; }
+
+      .button {
+        display: inline-block;
+        padding: 8px 14px;
+        border: 1px solid var(--blue);
+        border-radius: 999px;
+        background: var(--blue);
+        color: var(--white);
+        font: inherit;
+        font-size: 0.9rem;
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      .button-outline { background: var(--white); color: var(--blue); }
+      .button-danger { border-color: var(--danger); background: var(--danger); }
+
+      dl.summary { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; font-size: 0.92rem; }
+      dl.summary dt { color: var(--muted); }
+      dl.summary dd { margin: 0; font-weight: 600; }
+
+      ul.plain { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+      ul.plain li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+
+      fieldset { margin: 0 0 12px; padding: 0; border: 0; display: grid; gap: 6px; }
+      label { font-size: 0.92rem; }
+      textarea { width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; font: inherit; }
+
+      .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="container header-inner">
+        <h1>FacilePro · Administration des dossiers</h1>
+        <a href="/#compte">Retour à l’espace client</a>
+      </div>
+    </header>
+
+    <main class="container">
+      <p class="status" id="status" role="status" aria-live="polite">Chargement…</p>
+
+      <section class="panel" id="list-panel" hidden>
+        <h2>Dossiers clients</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Statut</th>
+                <th>ARCE estimée</th>
+                <th>Commission</th>
+                <th>Pièces manquantes</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="dossier-rows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" id="detail-panel" hidden>
+        <h2 id="detail-title"></h2>
+        <dl class="summary" id="detail-summary"></dl>
+
+        <h3>Pièces justificatives</h3>
+        <ul class="plain" id="detail-documents"></ul>
+
+        <h3>Demander des pièces manquantes</h3>
+        <form id="request-form">
+          <fieldset id="request-kinds"></fieldset>
+          <label for="request-message">Message au client (facultatif, sans donnée sensible)</label>
+          <textarea id="request-message" maxlength="1000"></textarea>
+          <div class="actions">
+            <button class="button" type="submit">Envoyer la demande</button>
+          </div>
+        </form>
+
+        <h3>Historique des demandes</h3>
+        <ul class="plain" id="detail-requests"></ul>
+
+        <div class="actions">
+          <button class="button button-danger" type="button" id="close-dossier">Clore le dossier et supprimer toutes les pièces</button>
+          <button class="button button-outline" type="button" id="back-to-list">Retour à la liste</button>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const statusBox = document.getElementById('status');
+      const listPanel = document.getElementById('list-panel');
+      const detailPanel = document.getElementById('detail-panel');
+      let currentAccountId = null;
+      let kindLabels = {};
+
+      const money = (cents) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(cents / 100);
+      const formatDate = (value) => value ? new Date(value.length === 10 ? `${value}T00:00:00` : value).toLocaleDateString('fr-FR') : '—';
+
+      const setStatus = (message, isError = false) => {
+        statusBox.hidden = !message;
+        statusBox.textContent = message;
+        if (isError) statusBox.dataset.state = 'error';
+        else statusBox.removeAttribute('data-state');
+      };
+
+      const api = async (url, options = {}) => {
+        const response = await fetch(url, options);
+        const result = await response.json().catch(() => ({}));
+        if (response.status === 401) throw new Error('Connectez-vous d’abord depuis l’espace client avec un compte administrateur.');
+        if (!response.ok) throw new Error(result.error || 'Une erreur est survenue.');
+        return result;
+      };
+
+      const cell = (row, content) => {
+        const td = document.createElement('td');
+        if (content instanceof Node) td.append(content);
+        else td.textContent = content;
+        row.append(td);
+      };
+
+      const tags = (kinds, ok = false) => {
+        const wrapper = document.createElement('span');
+        if (kinds.length === 0) {
+          const tag = document.createElement('span');
+          tag.className = 'tag tag-ok';
+          tag.textContent = 'Complet';
+          wrapper.append(tag);
+        }
+        kinds.forEach((kind) => {
+          const tag = document.createElement('span');
+          tag.className = ok ? 'tag tag-ok' : 'tag';
+          tag.textContent = kindLabels[kind] || kind;
+          wrapper.append(tag);
+        });
+        return wrapper;
+      };
+
+      const loadList = async () => {
+        detailPanel.hidden = true;
+        currentAccountId = null;
+        try {
+          const result = await api('/api/admin/dossiers');
+          kindLabels = result.documentKinds;
+          const rows = document.getElementById('dossier-rows');
+          rows.replaceChildren();
+          result.dossiers.forEach((dossier) => {
+            const row = document.createElement('tr');
+            cell(row, dossier.email);
+            cell(row, `${dossier.status}${dossier.openRequests ? ` · ${dossier.openRequests} demande(s) en attente` : ''}`);
+            cell(row, dossier.estimate ? money(dossier.estimate.netCapitalCents) : '—');
+            cell(row, dossier.estimate ? money(dossier.estimate.commissionCents) : '—');
+            cell(row, tags(dossier.missingKinds));
+            const open = document.createElement('button');
+            open.type = 'button';
+            open.className = 'button button-outline';
+            open.textContent = 'Ouvrir';
+            open.addEventListener('click', () => loadDetail(dossier.accountId));
+            cell(row, open);
+            rows.append(row);
+          });
+          listPanel.hidden = false;
+          setStatus(result.dossiers.length ? '' : 'Aucun client inscrit pour le moment.');
+        } catch (error) {
+          listPanel.hidden = true;
+          setStatus(error.message, true);
+        }
+      };
+
+      const loadDetail = async (accountId) => {
+        try {
+          const result = await api(`/api/admin/dossiers/${encodeURIComponent(accountId)}`);
+          currentAccountId = accountId;
+          kindLabels = result.documentKinds;
+          document.getElementById('detail-title').textContent = `Dossier de ${result.email}`;
+
+          const summary = document.getElementById('detail-summary');
+          summary.replaceChildren();
+          const addLine = (label, value) => {
+            const dt = document.createElement('dt');
+            dt.textContent = label;
+            const dd = document.createElement('dd');
+            dd.textContent = value;
+            summary.append(dt, dd);
+          };
+          if (result.dossier && result.estimate) {
+            addLine('Statut', result.dossier.status);
+            addLine('Jours restants', String(result.dossier.remainingDays));
+            addLine('Allocation journalière brute', money(result.dossier.dailyAllowanceCents));
+            addLine('Date de référence', formatDate(result.dossier.referenceDate));
+            addLine('Reliquat ARE', money(result.estimate.remainingRightsCents));
+            addLine('ARCE estimée (60 % − 3 %)', money(result.estimate.netCapitalCents));
+            addLine('1er versement', `${money(result.estimate.firstPaymentCents)} · ${formatDate(result.estimate.firstPaymentDate)}`);
+            addLine('2e versement', `${money(result.estimate.secondPaymentCents)} · ${formatDate(result.estimate.secondPaymentDate)}`);
+            addLine('Commission 12 %', money(result.estimate.commissionCents));
+          } else {
+            addLine('Dossier ARCE', 'Pas encore rempli par le client');
+          }
+
+          const documents = document.getElementById('detail-documents');
+          documents.replaceChildren();
+          Object.entries(result.documentKinds).forEach(([kind, label]) => {
+            const item = document.createElement('li');
+            const text = document.createElement('span');
+            const file = result.documents.find((entry) => entry.kind === kind);
+            text.textContent = file
+              ? `${label} — déposé le ${formatDate(file.uploadedAt)}, supprimé le ${formatDate(file.expiresAt)}`
+              : `${label} — manquant`;
+            item.append(text);
+            if (file) {
+              const link = document.createElement('a');
+              link.className = 'button button-outline';
+              link.href = `/api/admin/documents/${encodeURIComponent(file.id)}`;
+              link.textContent = 'Télécharger';
+              item.append(link);
+            }
+            documents.append(item);
+          });
+
+          const kindsBox = document.getElementById('request-kinds');
+          kindsBox.replaceChildren();
+          Object.entries(result.documentKinds).forEach(([kind, label]) => {
+            const wrapper = document.createElement('label');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = kind;
+            checkbox.checked = result.missingKinds.includes(kind);
+            wrapper.append(checkbox, ` ${label}`);
+            kindsBox.append(wrapper);
+          });
+
+          const requests = document.getElementById('detail-requests');
+          requests.replaceChildren();
+          if (result.requests.length === 0) {
+            const item = document.createElement('li');
+            item.textContent = 'Aucune demande.';
+            requests.append(item);
+          }
+          result.requests.forEach((entry) => {
+            const item = document.createElement('li');
+            item.textContent = `${formatDate(entry.createdAt)} : ${entry.labels.join(', ')}${entry.message ? ` — ${entry.message}` : ''} · ${entry.resolvedAt ? `traitée le ${formatDate(entry.resolvedAt)}` : 'en attente'}`;
+            requests.append(item);
+          });
+
+          listPanel.hidden = true;
+          detailPanel.hidden = false;
+          setStatus('');
+        } catch (error) {
+          setStatus(error.message, true);
+        }
+      };
+
+      document.getElementById('request-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const kinds = [...document.querySelectorAll('#request-kinds input:checked')].map((input) => input.value);
+        try {
+          const result = await api(`/api/admin/dossiers/${encodeURIComponent(currentAccountId)}/requests`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ kinds, message: document.getElementById('request-message').value })
+          });
+          document.getElementById('request-message').value = '';
+          await loadDetail(currentAccountId);
+          setStatus(result.message);
+        } catch (error) {
+          setStatus(error.message, true);
+        }
+      });
+
+      document.getElementById('close-dossier').addEventListener('click', async () => {
+        if (!window.confirm('Clore ce dossier et supprimer définitivement toutes ses pièces ?')) return;
+        try {
+          const result = await api(`/api/admin/dossiers/${encodeURIComponent(currentAccountId)}/documents`, { method: 'DELETE' });
+          await loadDetail(currentAccountId);
+          setStatus(result.message);
+        } catch (error) {
+          setStatus(error.message, true);
+        }
+      });
+
+      document.getElementById('back-to-list').addEventListener('click', loadList);
+      loadList();
+    </script>
+  </body>
+</html>

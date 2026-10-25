@@ -40,6 +40,24 @@ if (baseUrl && !/^https?:\/\//i.test(baseUrl)) {
 }
 const configured = missingSettings.length === 0 && /^https?:\/\//i.test(baseUrl);
 
+// Dépôt de pièces justificatives : désactivé tant que DOCUMENTS_UPLOAD_ENABLED n'est pas « true »
+// et qu'une clé de chiffrement valide (64 caractères hexadécimaux) n'est pas fournie.
+const documentsKey = /^[0-9a-f]{64}$/i.test(process.env.DOCUMENTS_ENCRYPTION_KEY || '')
+  ? Buffer.from(process.env.DOCUMENTS_ENCRYPTION_KEY, 'hex')
+  : null;
+const uploadsEnabled = process.env.DOCUMENTS_UPLOAD_ENABLED === 'true' && Boolean(documentsKey);
+if (process.env.DOCUMENTS_UPLOAD_ENABLED === 'true' && !documentsKey) {
+  console.error('DOCUMENTS_ENCRYPTION_KEY absente ou invalide : dépôt de documents désactivé.');
+}
+const retentionDays = Math.min(Math.max(Number(process.env.DOCUMENTS_RETENTION_DAYS) || 90, 1), 365);
+const adminEmails = new Set((process.env.ADMIN_EMAILS || '').split(',').map((email) => email.trim().toLowerCase()).filter(Boolean));
+const maxDocumentBytes = 4 * 1024 * 1024;
+const documentKinds = {
+  identite: 'Pièce d’identité',
+  attestation_france_travail: 'Attestation de droits France Travail',
+  reliquat_are: 'Justificatif du reliquat ARE'
+};
+
 const stripe = configured ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 const { Pool } = pg;
 const accountPool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env.DATABASE_URL }) : null;
@@ -213,6 +231,137 @@ async function loadQuote(id) {
     throw error;
   }
   return result.rows[0].data;
+}
+
+// Estimation ARCE (service-public.gouv.fr F15252) : 60 % du capital restant des droits ARE,
+// moins 3 % de participation aux retraites complémentaires, versé en deux moitiés à 6 mois d'écart.
+function computeArce(remainingDays, dailyAllowanceCents, referenceDate) {
+  const remainingRightsCents = remainingDays * dailyAllowanceCents;
+  const grossCapitalCents = Math.round(remainingRightsCents * 0.6);
+  const retirementDeductionCents = Math.round(grossCapitalCents * 0.03);
+  const netCapitalCents = grossCapitalCents - retirementDeductionCents;
+  const firstPaymentCents = Math.round(netCapitalCents / 2);
+  const secondPaymentDate = new Date(`${referenceDate}T00:00:00Z`);
+  secondPaymentDate.setUTCMonth(secondPaymentDate.getUTCMonth() + 6);
+  return {
+    remainingRightsCents,
+    grossCapitalCents,
+    retirementDeductionCents,
+    netCapitalCents,
+    firstPaymentCents,
+    firstPaymentDate: referenceDate,
+    secondPaymentCents: netCapitalCents - firstPaymentCents,
+    secondPaymentDate: secondPaymentDate.toISOString().slice(0, 10),
+    commissionCents: Math.round(netCapitalCents * 0.12)
+  };
+}
+
+function readDossier(body) {
+  const remainingDays = Number(body?.remainingDays);
+  if (!Number.isInteger(remainingDays) || remainingDays < 1 || remainingDays > 1100) {
+    throw new Error('Le nombre de jours restants doit être un nombre entier entre 1 et 1 100.');
+  }
+  const allowance = Number(String(body?.dailyAllowance ?? '').trim().replace(',', '.'));
+  if (!Number.isFinite(allowance) || allowance <= 0 || allowance > 500) {
+    throw new Error('L’allocation journalière brute doit être comprise entre 0,01 € et 500 €.');
+  }
+  const referenceDate = typeof body?.referenceDate === 'string' ? body.referenceDate : '';
+  const parsed = new Date(`${referenceDate}T00:00:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(referenceDate) || Number.isNaN(parsed.getTime())
+    || parsed.toISOString().slice(0, 10) !== referenceDate
+    || referenceDate < '2020-01-01' || parsed.getTime() > Date.now() + 366 * 24 * 3600 * 1000) {
+    throw new Error('La date de référence est invalide.');
+  }
+  return { remainingDays, dailyAllowanceCents: Math.round(allowance * 100), referenceDate };
+}
+
+function detectDocumentType(content) {
+  if (content.subarray(0, 5).toString('latin1') === '%PDF-') return { mime: 'application/pdf', extension: 'pdf' };
+  if (content[0] === 0xff && content[1] === 0xd8 && content[2] === 0xff) return { mime: 'image/jpeg', extension: 'jpg' };
+  if (content.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return { mime: 'image/png', extension: 'png' };
+  return null;
+}
+
+function encryptDocument(content, documentId, accountId) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', documentsKey, iv);
+  cipher.setAAD(Buffer.from(`${documentId}:${accountId}`));
+  const ciphertext = Buffer.concat([cipher.update(content), cipher.final()]);
+  return { iv, ciphertext, authTag: cipher.getAuthTag() };
+}
+
+function decryptDocument(row) {
+  const decipher = crypto.createDecipheriv('aes-256-gcm', documentsKey, row.iv);
+  decipher.setAAD(Buffer.from(`${row.id}:${row.account_id}`));
+  decipher.setAuthTag(row.auth_tag);
+  return Buffer.concat([decipher.update(row.ciphertext), decipher.final()]);
+}
+
+function sendDocumentFile(response, row) {
+  const content = decryptDocument(row);
+  response.setHeader('Content-Type', row.mime);
+  response.setHeader('Content-Disposition', `attachment; filename="${documentKindFileName(row)}"`);
+  response.setHeader('Cache-Control', 'no-store, private');
+  response.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+  return response.send(content);
+}
+
+function documentKindFileName(row) {
+  const extension = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' }[row.mime] || 'bin';
+  return `${row.kind}-${row.id.slice(0, 8)}.${extension}`;
+}
+
+async function logDocumentAccess(actorEmail, accountId, documentId, action) {
+  await accountPool.query(
+    'INSERT INTO document_access_log (actor_email, account_id, document_id, action) VALUES ($1, $2, $3, $4)',
+    [actorEmail, accountId, documentId, action]
+  );
+}
+
+async function purgeExpiredDocuments() {
+  const result = await accountPool.query('DELETE FROM dossier_documents WHERE expires_at <= NOW() RETURNING id, account_id');
+  for (const row of result.rows) await logDocumentAccess('système', row.account_id, row.id, 'suppression automatique (durée de conservation)');
+  return result.rowCount;
+}
+
+async function loadDossierView(accountId) {
+  const [dossierResult, documentsResult, requestsResult] = await Promise.all([
+    accountPool.query('SELECT remaining_days, daily_allowance_cents, reference_date::text, status, updated_at FROM arce_dossiers WHERE account_id = $1', [accountId]),
+    accountPool.query('SELECT id, kind, size, mime, uploaded_at, expires_at FROM dossier_documents WHERE account_id = $1 ORDER BY uploaded_at', [accountId]),
+    accountPool.query('SELECT id, kinds, message, created_at, resolved_at FROM document_requests WHERE account_id = $1 ORDER BY created_at DESC', [accountId])
+  ]);
+  const row = dossierResult.rows[0];
+  const dossier = row ? {
+    remainingDays: row.remaining_days,
+    dailyAllowanceCents: row.daily_allowance_cents,
+    referenceDate: row.reference_date,
+    status: row.status,
+    updatedAt: row.updated_at
+  } : null;
+  const documents = documentsResult.rows.map((document) => ({
+    id: document.id,
+    kind: document.kind,
+    label: documentKinds[document.kind],
+    size: document.size,
+    mime: document.mime,
+    uploadedAt: document.uploaded_at,
+    expiresAt: document.expires_at
+  }));
+  const presentKinds = new Set(documents.map((document) => document.kind));
+  return {
+    dossier,
+    estimate: dossier ? computeArce(dossier.remainingDays, dossier.dailyAllowanceCents, dossier.referenceDate) : null,
+    documents,
+    missingKinds: Object.keys(documentKinds).filter((kind) => !presentKinds.has(kind)),
+    requests: requestsResult.rows.map((request) => ({
+      id: request.id,
+      kinds: request.kinds,
+      labels: request.kinds.map((kind) => documentKinds[kind]),
+      message: request.message,
+      createdAt: request.created_at,
+      resolvedAt: request.resolved_at
+    }))
+  };
 }
 
 function makePdf(createContent) {
@@ -513,7 +662,7 @@ app.get('/api/account/me', async (request, response) => {
   try {
     const account = await getAuthenticatedAccount(request);
     if (!account) return response.status(401).json({ error: 'Veuillez vous connecter.' });
-    return response.json({ email: account.email });
+    return response.json({ email: account.email, isAdmin: adminEmails.has(account.email) });
   } catch (error) {
     console.error('Lecture du compte impossible :', error);
     return response.status(500).json({ error: 'Impossible de lire le compte pour le moment.' });
@@ -556,6 +705,287 @@ app.post('/api/account/logout', async (request, response) => {
   } catch (error) {
     console.error('Déconnexion du compte impossible :', error);
     return response.status(500).json({ error: 'Impossible de vous déconnecter pour le moment.' });
+  }
+});
+
+const documentRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  handler: (_request, response) => response.status(429).json({ error: 'Trop de demandes. Réessayez dans quelques minutes.' })
+});
+
+// Exige un compte connecté et vérifié ; avec admin = true, exige aussi une adresse listée dans ADMIN_EMAILS.
+function requireAccount({ admin = false } = {}) {
+  return async (request, response, next) => {
+    if (!accountPool || !accountStoreReady) return sendAccountUnavailable(response);
+    try {
+      const account = await getAuthenticatedAccount(request);
+      if (!account) return response.status(401).json({ error: 'Veuillez vous connecter.' });
+      if (admin && !adminEmails.has(account.email)) return response.status(403).json({ error: 'Accès réservé aux administrateurs.' });
+      request.account = account;
+      response.setHeader('Cache-Control', 'no-store, private');
+      return next();
+    } catch (error) {
+      console.error('Vérification de la session impossible :', error);
+      return response.status(500).json({ error: 'Impossible de vérifier votre session.' });
+    }
+  };
+}
+
+function isUuid(value) {
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+app.get('/api/account/dossier', documentRateLimit, requireAccount(), async (request, response) => {
+  try {
+    await purgeExpiredDocuments();
+    const view = await loadDossierView(request.account.id);
+    return response.json({ ...view, uploadsEnabled, retentionDays, documentKinds });
+  } catch (error) {
+    console.error('Lecture du dossier impossible :', error);
+    return response.status(500).json({ error: 'Impossible de charger votre dossier.' });
+  }
+});
+
+app.put('/api/account/dossier', documentRateLimit, requireAccount(), async (request, response) => {
+  let dossier;
+  try {
+    dossier = readDossier(request.body);
+  } catch (error) {
+    return response.status(400).json({ error: error.message });
+  }
+  try {
+    await accountPool.query(
+      `INSERT INTO arce_dossiers (account_id, remaining_days, daily_allowance_cents, reference_date)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (account_id) DO UPDATE
+         SET remaining_days = EXCLUDED.remaining_days,
+             daily_allowance_cents = EXCLUDED.daily_allowance_cents,
+             reference_date = EXCLUDED.reference_date,
+             updated_at = NOW()`,
+      [request.account.id, dossier.remainingDays, dossier.dailyAllowanceCents, dossier.referenceDate]
+    );
+    return response.json({ estimate: computeArce(dossier.remainingDays, dossier.dailyAllowanceCents, dossier.referenceDate) });
+  } catch (error) {
+    console.error('Enregistrement du dossier impossible :', error);
+    return response.status(500).json({ error: 'Impossible d’enregistrer votre dossier.' });
+  }
+});
+
+app.post('/api/account/documents', documentRateLimit, requireAccount(),
+  express.raw({ type: 'application/octet-stream', limit: maxDocumentBytes }), async (request, response) => {
+    if (!uploadsEnabled) {
+      return response.status(403).json({ error: 'Le dépôt sécurisé de documents n’est pas encore ouvert. N’envoyez aucun document par email.' });
+    }
+    const kind = request.query.kind;
+    if (typeof kind !== 'string' || !documentKinds[kind]) return response.status(400).json({ error: 'Type de document invalide.' });
+    const content = request.body;
+    if (!Buffer.isBuffer(content) || content.length === 0) return response.status(400).json({ error: 'Fichier vide ou illisible.' });
+    const type = detectDocumentType(content);
+    if (!type) return response.status(400).json({ error: 'Format refusé : seuls les fichiers PDF, JPEG et PNG sont acceptés.' });
+
+    const documentId = crypto.randomUUID();
+    const accountId = request.account.id;
+    const encrypted = encryptDocument(content, documentId, accountId);
+    const client = await accountPool.connect();
+    try {
+      await client.query('BEGIN');
+      const previous = await client.query('DELETE FROM dossier_documents WHERE account_id = $1 AND kind = $2 RETURNING id', [accountId, kind]);
+      await client.query(
+        `INSERT INTO dossier_documents (id, account_id, kind, mime, size, iv, auth_tag, ciphertext, expires_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW() + make_interval(days => $9))`,
+        [documentId, accountId, kind, type.mime, content.length, encrypted.iv, encrypted.authTag, encrypted.ciphertext, retentionDays]
+      );
+      await client.query(
+        `UPDATE document_requests SET resolved_at = NOW()
+         WHERE account_id = $1 AND resolved_at IS NULL
+           AND kinds <@ (SELECT array_agg(kind) FROM dossier_documents WHERE account_id = $1)`,
+        [accountId]
+      );
+      await client.query('COMMIT');
+      for (const row of previous.rows) await logDocumentAccess(request.account.email, accountId, row.id, 'remplacement par le client');
+      await logDocumentAccess(request.account.email, accountId, documentId, 'dépôt');
+      return response.json({ message: `${documentKinds[kind]} déposé(e) et chiffré(e).`, id: documentId });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      console.error('Dépôt du document impossible :', error);
+      return response.status(500).json({ error: 'Impossible d’enregistrer le document.' });
+    } finally {
+      client.release();
+    }
+  });
+
+app.get('/api/account/documents/:id', documentRateLimit, requireAccount(), async (request, response) => {
+  if (!isUuid(request.params.id) || !documentsKey) return response.status(404).json({ error: 'Document introuvable.' });
+  try {
+    const result = await accountPool.query(
+      'SELECT * FROM dossier_documents WHERE id = $1 AND account_id = $2 AND expires_at > NOW()',
+      [request.params.id, request.account.id]
+    );
+    if (!result.rows[0]) return response.status(404).json({ error: 'Document introuvable.' });
+    await logDocumentAccess(request.account.email, request.account.id, request.params.id, 'téléchargement par le client');
+    return sendDocumentFile(response, result.rows[0]);
+  } catch (error) {
+    console.error('Lecture du document impossible :', error);
+    return response.status(500).json({ error: 'Impossible de lire le document.' });
+  }
+});
+
+app.delete('/api/account/documents/:id', documentRateLimit, requireAccount(), async (request, response) => {
+  if (!isUuid(request.params.id)) return response.status(404).json({ error: 'Document introuvable.' });
+  try {
+    const result = await accountPool.query(
+      'DELETE FROM dossier_documents WHERE id = $1 AND account_id = $2 RETURNING id',
+      [request.params.id, request.account.id]
+    );
+    if (!result.rows[0]) return response.status(404).json({ error: 'Document introuvable.' });
+    await logDocumentAccess(request.account.email, request.account.id, request.params.id, 'suppression par le client');
+    return response.json({ message: 'Document supprimé définitivement.' });
+  } catch (error) {
+    console.error('Suppression du document impossible :', error);
+    return response.status(500).json({ error: 'Impossible de supprimer le document.' });
+  }
+});
+
+app.get('/api/admin/dossiers', documentRateLimit, requireAccount({ admin: true }), async (_request, response) => {
+  try {
+    await purgeExpiredDocuments();
+    const result = await accountPool.query(
+      `SELECT accounts.id, accounts.email, accounts.created_at,
+              arce_dossiers.remaining_days, arce_dossiers.daily_allowance_cents, arce_dossiers.reference_date::text,
+              arce_dossiers.status, arce_dossiers.updated_at,
+              COALESCE((SELECT array_agg(kind) FROM dossier_documents WHERE account_id = accounts.id), '{}') AS kinds,
+              (SELECT COUNT(*)::int FROM document_requests WHERE account_id = accounts.id AND resolved_at IS NULL) AS open_requests
+       FROM accounts
+       LEFT JOIN arce_dossiers ON arce_dossiers.account_id = accounts.id
+       WHERE accounts.email_verified_at IS NOT NULL
+       ORDER BY COALESCE(arce_dossiers.updated_at, accounts.created_at) DESC`
+    );
+    return response.json({
+      documentKinds,
+      dossiers: result.rows.map((row) => ({
+        accountId: row.id,
+        email: row.email,
+        createdAt: row.created_at,
+        status: row.status || 'non commencé',
+        updatedAt: row.updated_at,
+        estimate: row.remaining_days ? computeArce(row.remaining_days, row.daily_allowance_cents, row.reference_date) : null,
+        missingKinds: Object.keys(documentKinds).filter((kind) => !row.kinds.includes(kind)),
+        openRequests: row.open_requests
+      }))
+    });
+  } catch (error) {
+    console.error('Liste des dossiers impossible :', error);
+    return response.status(500).json({ error: 'Impossible de charger les dossiers.' });
+  }
+});
+
+app.get('/api/admin/dossiers/:accountId', documentRateLimit, requireAccount({ admin: true }), async (request, response) => {
+  if (!isUuid(request.params.accountId)) return response.status(404).json({ error: 'Dossier introuvable.' });
+  try {
+    const account = await accountPool.query('SELECT id, email FROM accounts WHERE id = $1', [request.params.accountId]);
+    if (!account.rows[0]) return response.status(404).json({ error: 'Dossier introuvable.' });
+    const view = await loadDossierView(request.params.accountId);
+    await logDocumentAccess(request.account.email, request.params.accountId, null, 'consultation du dossier');
+    return response.json({ email: account.rows[0].email, ...view, documentKinds });
+  } catch (error) {
+    console.error('Lecture du dossier administrateur impossible :', error);
+    return response.status(500).json({ error: 'Impossible de charger le dossier.' });
+  }
+});
+
+app.get('/api/admin/documents/:id', documentRateLimit, requireAccount({ admin: true }), async (request, response) => {
+  if (!isUuid(request.params.id) || !documentsKey) return response.status(404).json({ error: 'Document introuvable.' });
+  try {
+    const result = await accountPool.query('SELECT * FROM dossier_documents WHERE id = $1 AND expires_at > NOW()', [request.params.id]);
+    if (!result.rows[0]) return response.status(404).json({ error: 'Document introuvable.' });
+    await logDocumentAccess(request.account.email, result.rows[0].account_id, request.params.id, 'téléchargement par un administrateur');
+    return sendDocumentFile(response, result.rows[0]);
+  } catch (error) {
+    console.error('Lecture du document administrateur impossible :', error);
+    return response.status(500).json({ error: 'Impossible de lire le document.' });
+  }
+});
+
+app.post('/api/admin/dossiers/:accountId/requests', documentRateLimit, requireAccount({ admin: true }), async (request, response) => {
+  if (!isUuid(request.params.accountId)) return response.status(404).json({ error: 'Dossier introuvable.' });
+  const kinds = Array.isArray(request.body?.kinds) ? [...new Set(request.body.kinds)] : [];
+  if (kinds.length === 0 || !kinds.every((kind) => documentKinds[kind])) {
+    return response.status(400).json({ error: 'Choisissez au moins une pièce à demander.' });
+  }
+  const message = typeof request.body?.message === 'string' ? request.body.message.trim().slice(0, 1000) : '';
+  try {
+    const account = await accountPool.query('SELECT email FROM accounts WHERE id = $1', [request.params.accountId]);
+    if (!account.rows[0]) return response.status(404).json({ error: 'Dossier introuvable.' });
+    await accountPool.query(
+      'INSERT INTO document_requests (id, account_id, kinds, message, requested_by) VALUES ($1, $2, $3, $4, $5)',
+      [crypto.randomUUID(), request.params.accountId, kinds, message || null, request.account.email]
+    );
+    await logDocumentAccess(request.account.email, request.params.accountId, null, `demande de pièces : ${kinds.join(', ')}`);
+    try {
+      // L'email ne contient aucun document ni donnée personnelle : il invite seulement à se connecter.
+      await mailer.sendMail({
+        from: process.env.MAIL_FROM,
+        to: account.rows[0].email,
+        subject: 'Pièces à compléter dans votre espace client FacilePro',
+        text: [
+          'Bonjour,',
+          '',
+          'Pour avancer sur votre dossier, merci de déposer les pièces suivantes dans votre espace client sécurisé :',
+          ...kinds.map((kind) => `- ${documentKinds[kind]}`),
+          ...(message ? ['', message] : []),
+          '',
+          `Connectez-vous ici : ${baseUrl}/#compte`,
+          '',
+          'Important : n’envoyez jamais vos documents par email. Utilisez uniquement votre espace client.',
+          '',
+          process.env.BUSINESS_NAME
+        ].join('\n')
+      });
+      return response.json({ message: 'Demande enregistrée et client prévenu par email.' });
+    } catch (error) {
+      console.error('Envoi de la demande de pièces impossible :', error);
+      return response.json({ message: 'Demande enregistrée, mais l’email de notification n’a pas pu être envoyé.' });
+    }
+  } catch (error) {
+    console.error('Demande de pièces impossible :', error);
+    return response.status(500).json({ error: 'Impossible d’enregistrer la demande.' });
+  }
+});
+
+app.delete('/api/admin/dossiers/:accountId/documents', documentRateLimit, requireAccount({ admin: true }), async (request, response) => {
+  if (!isUuid(request.params.accountId)) return response.status(404).json({ error: 'Dossier introuvable.' });
+  try {
+    const result = await accountPool.query('DELETE FROM dossier_documents WHERE account_id = $1 RETURNING id', [request.params.accountId]);
+    await accountPool.query(
+      `UPDATE arce_dossiers SET status = 'clos', updated_at = NOW() WHERE account_id = $1`,
+      [request.params.accountId]
+    );
+    await accountPool.query('UPDATE document_requests SET resolved_at = NOW() WHERE account_id = $1 AND resolved_at IS NULL', [request.params.accountId]);
+    await logDocumentAccess(request.account.email, request.params.accountId, null, `clôture : ${result.rowCount} document(s) supprimé(s)`);
+    return response.json({ message: `Dossier clos : ${result.rowCount} document(s) supprimé(s) définitivement.` });
+  } catch (error) {
+    console.error('Clôture du dossier impossible :', error);
+    return response.status(500).json({ error: 'Impossible de clore le dossier.' });
+  }
+});
+
+// Appelée chaque jour par Vercel Cron (en-tête Authorization: Bearer CRON_SECRET).
+app.get('/api/cron/purge-documents', async (request, response) => {
+  const secret = process.env.CRON_SECRET;
+  const expected = Buffer.from(`Bearer ${secret || ''}`);
+  const received = Buffer.from(request.headers.authorization || '');
+  if (!secret || expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) {
+    return response.status(401).json({ error: 'Non autorisé.' });
+  }
+  if (!accountPool || !accountStoreReady) return sendAccountUnavailable(response);
+  try {
+    return response.json({ deleted: await purgeExpiredDocuments() });
+  } catch (error) {
+    console.error('Purge des documents impossible :', error);
+    return response.status(500).json({ error: 'Purge impossible.' });
   }
 });
 
@@ -675,6 +1105,15 @@ app.get('/api/payment-status', async (request, response) => {
 // En local, Express sert public/ ; sur Vercel, ce dossier est servi directement par le CDN.
 app.use(express.static(path.join(directory, 'public')));
 
+app.use((error, _request, response, _next) => {
+  if (error.type === 'entity.too.large') {
+    return response.status(413).json({ error: 'Fichier trop volumineux : 4 Mo maximum.' });
+  }
+  if (error.type === 'entity.parse.failed') return response.status(400).json({ error: 'Requête invalide.' });
+  console.error('Erreur inattendue :', error);
+  return response.status(500).json({ error: 'Une erreur est survenue.' });
+});
+
 async function initializeAccountStore() {
   if (!accountPool) {
     accountStoreError = new Error('DATABASE_URL n’est pas configurée.');
@@ -708,6 +1147,45 @@ async function initializeAccountStore() {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS quotes_client_email_idx ON quotes (client_email);
+      CREATE TABLE IF NOT EXISTS arce_dossiers (
+        account_id UUID PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        remaining_days INTEGER NOT NULL,
+        daily_allowance_cents INTEGER NOT NULL,
+        reference_date DATE NOT NULL,
+        status TEXT NOT NULL DEFAULT 'ouvert',
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS dossier_documents (
+        id UUID PRIMARY KEY,
+        account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        mime TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        iv BYTEA NOT NULL,
+        auth_tag BYTEA NOT NULL,
+        ciphertext BYTEA NOT NULL,
+        uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        expires_at TIMESTAMPTZ NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS dossier_documents_account_idx ON dossier_documents (account_id);
+      CREATE INDEX IF NOT EXISTS dossier_documents_expiry_idx ON dossier_documents (expires_at);
+      CREATE TABLE IF NOT EXISTS document_requests (
+        id UUID PRIMARY KEY,
+        account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        kinds TEXT[] NOT NULL,
+        message TEXT,
+        requested_by TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        resolved_at TIMESTAMPTZ
+      );
+      CREATE TABLE IF NOT EXISTS document_access_log (
+        id BIGSERIAL PRIMARY KEY,
+        actor_email TEXT NOT NULL,
+        account_id UUID,
+        document_id UUID,
+        action TEXT NOT NULL,
+        at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
     `);
     accountStoreReady = true;
   } catch (error) {
