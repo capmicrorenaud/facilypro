@@ -122,6 +122,7 @@
       textarea { width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; font: inherit; }
 
       .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+      .code-input { display: block; width: 10em; margin-top: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; font: inherit; font-size: 1.2rem; letter-spacing: 0.2em; }
     </style>
   </head>
   <body>
@@ -134,6 +135,21 @@
 
     <main class="container">
       <p class="status" id="status" role="status" aria-live="polite">Chargement…</p>
+
+      <section class="panel" id="code-panel" hidden>
+        <h2>Vérification en deux étapes</h2>
+        <p>Pour protéger les documents des clients, un code à 6 chiffres est envoyé à votre adresse email. Il est demandé à chaque nouvelle connexion, puis toutes les 12 heures.</p>
+        <div class="actions">
+          <button class="button" type="button" id="send-code">Recevoir un code par email</button>
+        </div>
+        <form id="code-form">
+          <label for="admin-code">Code reçu par email</label>
+          <input id="admin-code" class="code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required>
+          <div class="actions">
+            <button class="button" type="submit">Valider le code</button>
+          </div>
+        </form>
+      </section>
 
       <section class="panel" id="list-panel" hidden>
         <h2>Dossiers clients</h2>
@@ -202,9 +218,46 @@
         const response = await fetch(url, options);
         const result = await response.json().catch(() => ({}));
         if (response.status === 401) throw new Error('Connectez-vous d’abord depuis l’espace client avec un compte administrateur.');
+        if (result.code === 'admin_code_required') {
+          showCodePanel();
+          throw new Error('Vérification en deux étapes : demandez un code et saisissez-le ci-dessous.');
+        }
         if (!response.ok) throw new Error(result.error || 'Une erreur est survenue.');
         return result;
       };
+
+      const codePanel = document.getElementById('code-panel');
+      const showCodePanel = () => {
+        codePanel.hidden = false;
+        listPanel.hidden = true;
+        detailPanel.hidden = true;
+      };
+
+      document.getElementById('send-code').addEventListener('click', async () => {
+        try {
+          const result = await api('/api/admin/code/request', { method: 'POST' });
+          setStatus(result.message);
+          document.getElementById('admin-code').focus();
+        } catch (error) {
+          setStatus(error.message, true);
+        }
+      });
+
+      document.getElementById('code-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        try {
+          await api('/api/admin/code/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: document.getElementById('admin-code').value })
+          });
+          document.getElementById('admin-code').value = '';
+          codePanel.hidden = true;
+          await loadList();
+        } catch (error) {
+          setStatus(error.message, true);
+        }
+      });
 
       const cell = (row, content) => {
         const td = document.createElement('td');

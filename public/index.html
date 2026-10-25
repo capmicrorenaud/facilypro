@@ -1168,6 +1168,16 @@
         font-size: 0.92rem;
       }
 
+      .dossier-delete {
+        margin-top: 24px;
+        padding-top: 8px;
+        border-top: 1px solid var(--line);
+      }
+
+      .dossier-delete .button {
+        width: 100%;
+      }
+
       .dossier-official .button {
         white-space: normal;
         text-align: center;
@@ -1828,6 +1838,17 @@
                   Déclaration de non-condamnation et de filiation (Service-Public.fr)
                 </a>
               </div>
+
+              <form class="dossier-delete" id="delete-account-form">
+                <h3>Supprimer mon compte</h3>
+                <p class="dossier-hint">Votre compte, votre dossier ARCE et toutes vos pièces seront effacés définitivement. Les devis et factures déjà émis restent conservés 10 ans (obligation comptable).</p>
+                <div class="field-group">
+                  <label for="delete-password">Mot de passe pour confirmer</label>
+                  <input id="delete-password" name="password" type="password" autocomplete="current-password" maxlength="128" required>
+                </div>
+                <button class="button button-outline" type="submit">Supprimer définitivement mon compte</button>
+                <p class="account-status" id="delete-status" role="status" aria-live="polite" hidden></p>
+              </form>
             </div>
           </div>
         </div>
@@ -2282,6 +2303,30 @@
           setStatus(documentsStatus, error.message || 'Impossible de charger votre dossier.', true);
         }
       };
+
+      const deleteAccountForm = document.getElementById('delete-account-form');
+      deleteAccountForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const deleteStatus = document.getElementById('delete-status');
+        if (!deleteAccountForm.reportValidity()) return;
+        if (!window.confirm('Supprimer définitivement votre compte, votre dossier et vos pièces ? Cette action est irréversible.')) return;
+        try {
+          const response = await fetch('/api/account', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: deleteAccountForm.elements.password.value })
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Impossible de supprimer le compte.');
+          deleteAccountForm.reset();
+          accountDashboard.hidden = true;
+          accountAuthPanel.hidden = false;
+          setAccountMode('register');
+          setAccountStatus(result.message);
+        } catch (error) {
+          setStatus(deleteStatus, error.message, true);
+        }
+      });
 
       const refreshAdminLink = async () => {
         try {

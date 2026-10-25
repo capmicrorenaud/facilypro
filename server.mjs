@@ -74,21 +74,54 @@ const sessionLifetimeSeconds = 60 * 60 * 24 * 30;
 let accountStoreReady = false;
 let accountStoreError = null;
 
-const accountRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  handler: (_request, response) => response.status(429).json({ error: 'Trop de tentatives. Réessayez dans quelques minutes.' })
-});
+// Compteurs anti-abus stockés dans PostgreSQL : sur Vercel, chaque instance a sa propre mémoire,
+// un compteur en mémoire serait donc contournable en multipliant les requêtes.
+class PostgresRateLimitStore {
+  constructor(prefix) {
+    this.prefix = prefix;
+  }
 
-const formRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 8,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  handler: (_request, response) => response.status(429).json({ error: 'Trop de demandes. Réessayez dans quelques minutes.' })
-});
+  init(options) {
+    this.windowSeconds = options.windowMs / 1000;
+  }
+
+  async increment(key) {
+    const result = await accountPool.query(
+      `INSERT INTO rate_limits (key, hits, reset_at) VALUES ($1, 1, NOW() + make_interval(secs => $2))
+       ON CONFLICT (key) DO UPDATE SET
+         hits = CASE WHEN rate_limits.reset_at <= NOW() THEN 1 ELSE rate_limits.hits + 1 END,
+         reset_at = CASE WHEN rate_limits.reset_at <= NOW() THEN EXCLUDED.reset_at ELSE rate_limits.reset_at END
+       RETURNING hits, reset_at`,
+      [`${this.prefix}:${key}`, this.windowSeconds]
+    );
+    return { totalHits: result.rows[0].hits, resetTime: result.rows[0].reset_at };
+  }
+
+  async decrement(key) {
+    await accountPool.query('UPDATE rate_limits SET hits = GREATEST(hits - 1, 0) WHERE key = $1', [`${this.prefix}:${key}`]);
+  }
+
+  async resetKey(key) {
+    await accountPool.query('DELETE FROM rate_limits WHERE key = $1', [`${this.prefix}:${key}`]);
+  }
+}
+
+function makeRateLimit(prefix, limit, message) {
+  return rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    store: accountPool ? new PostgresRateLimitStore(prefix) : undefined,
+    passOnStoreError: true,
+    handler: (_request, response) => response.status(429).json({ error: message })
+  });
+}
+
+const accountRateLimit = makeRateLimit('account', 10, 'Trop de tentatives. Réessayez dans quelques minutes.');
+const formRateLimit = makeRateLimit('form', 8, 'Trop de demandes. Réessayez dans quelques minutes.');
+const documentRateLimit = makeRateLimit('document', 30, 'Trop de demandes. Réessayez dans quelques minutes.');
+const adminCodeRateLimit = makeRateLimit('admin-code', 5, 'Trop de demandes de code. Réessayez dans quelques minutes.');
 
 function formatMoney(cents) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(cents / 100);
@@ -163,7 +196,9 @@ async function getAuthenticatedAccount(request) {
   const token = readSessionToken(request);
   if (!token) return null;
   const result = await accountPool.query(
-    `SELECT accounts.id, accounts.email
+    `SELECT accounts.id, accounts.email, accounts.documents_pilot,
+            account_sessions.token_hash AS session_hash,
+            account_sessions.admin_verified_at > NOW() - INTERVAL '12 hours' AS admin_verified
      FROM account_sessions
      JOIN accounts ON accounts.id = account_sessions.user_id
      WHERE account_sessions.token_hash = $1
@@ -487,6 +522,9 @@ async function processPaidCheckout(session) {
   }
 }
 
+// Même politique que dans vercel.json (qui l'applique aux pages servies par le CDN).
+const contentSecurityPolicy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://images.unsplash.com; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'";
+
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
@@ -495,6 +533,7 @@ app.use((_request, response, next) => {
   response.setHeader('X-Frame-Options', 'DENY');
   response.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  response.setHeader('Content-Security-Policy', contentSecurityPolicy);
   if (/^https:/i.test(baseUrl)) response.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
   next();
 });
@@ -708,15 +747,8 @@ app.post('/api/account/logout', async (request, response) => {
   }
 });
 
-const documentRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 30,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  handler: (_request, response) => response.status(429).json({ error: 'Trop de demandes. Réessayez dans quelques minutes.' })
-});
-
-// Exige un compte connecté et vérifié ; avec admin = true, exige aussi une adresse listée dans ADMIN_EMAILS.
+// Exige un compte connecté et vérifié ; avec admin = true, exige aussi une adresse listée dans ADMIN_EMAILS
+// et un code reçu par email validé sur cette session depuis moins de 12 heures.
 function requireAccount({ admin = false } = {}) {
   return async (request, response, next) => {
     if (!accountPool || !accountStoreReady) return sendAccountUnavailable(response);
@@ -724,6 +756,9 @@ function requireAccount({ admin = false } = {}) {
       const account = await getAuthenticatedAccount(request);
       if (!account) return response.status(401).json({ error: 'Veuillez vous connecter.' });
       if (admin && !adminEmails.has(account.email)) return response.status(403).json({ error: 'Accès réservé aux administrateurs.' });
+      if (admin && !account.admin_verified) {
+        return response.status(403).json({ error: 'Code de vérification requis.', code: 'admin_code_required' });
+      }
       request.account = account;
       response.setHeader('Cache-Control', 'no-store, private');
       return next();
@@ -738,11 +773,101 @@ function isUuid(value) {
   return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
+function hashAdminCode(sessionHash, code) {
+  return crypto.createHash('sha256').update(`${sessionHash}:${code}`).digest('hex');
+}
+
+app.post('/api/admin/code/request', adminCodeRateLimit, requireAccount(), async (request, response) => {
+  if (!adminEmails.has(request.account.email)) return response.status(403).json({ error: 'Accès réservé aux administrateurs.' });
+  const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+  try {
+    await accountPool.query(
+      `UPDATE account_sessions
+       SET admin_code_hash = $1, admin_code_expires_at = NOW() + INTERVAL '10 minutes', admin_code_attempts = 0
+       WHERE token_hash = $2`,
+      [hashAdminCode(request.account.session_hash, code), request.account.session_hash]
+    );
+    await mailer.sendMail({
+      from: process.env.MAIL_FROM,
+      to: request.account.email,
+      subject: `Code d’accès administrateur FacilePro : ${code}`,
+      text: [
+        `Votre code d’accès au tableau de bord administrateur : ${code}`,
+        '',
+        'Il est valable 10 minutes. Si vous n’êtes pas à l’origine de cette demande, changez votre mot de passe.'
+      ].join('\n')
+    });
+    return response.json({ message: 'Un code à 6 chiffres vient d’être envoyé à votre adresse email.' });
+  } catch (error) {
+    console.error('Envoi du code administrateur impossible :', error);
+    return response.status(502).json({ error: 'Impossible d’envoyer le code pour le moment.' });
+  }
+});
+
+app.post('/api/admin/code/verify', adminCodeRateLimit, requireAccount(), async (request, response) => {
+  if (!adminEmails.has(request.account.email)) return response.status(403).json({ error: 'Accès réservé aux administrateurs.' });
+  const code = typeof request.body?.code === 'string' ? request.body.code.trim() : '';
+  if (!/^\d{6}$/.test(code)) return response.status(400).json({ error: 'Le code doit contenir 6 chiffres.' });
+  try {
+    const result = await accountPool.query(
+      `UPDATE account_sessions SET admin_code_attempts = admin_code_attempts + 1
+       WHERE token_hash = $1 AND admin_code_hash IS NOT NULL AND admin_code_expires_at > NOW() AND admin_code_attempts < 5
+       RETURNING admin_code_hash`,
+      [request.account.session_hash]
+    );
+    const expected = result.rows[0]?.admin_code_hash;
+    const received = hashAdminCode(request.account.session_hash, code);
+    if (!expected || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received))) {
+      return response.status(400).json({ error: 'Code incorrect ou expiré. Demandez un nouveau code.' });
+    }
+    await accountPool.query(
+      `UPDATE account_sessions
+       SET admin_verified_at = NOW(), admin_code_hash = NULL, admin_code_expires_at = NULL, admin_code_attempts = 0
+       WHERE token_hash = $1`,
+      [request.account.session_hash]
+    );
+    await logDocumentAccess(request.account.email, null, null, 'connexion administrateur validée par code');
+    return response.json({ message: 'Accès administrateur validé.' });
+  } catch (error) {
+    console.error('Vérification du code administrateur impossible :', error);
+    return response.status(500).json({ error: 'Impossible de vérifier le code.' });
+  }
+});
+
+// Droit à l'effacement : supprime le compte, le dossier ARCE, les pièces et les sessions.
+// Les devis et factures restent conservés au titre des obligations comptables.
+app.delete('/api/account', accountRateLimit, requireAccount(), async (request, response) => {
+  const password = request.body?.password;
+  if (typeof password !== 'string' || password.length === 0 || password.length > 128) {
+    return response.status(400).json({ error: 'Saisissez votre mot de passe pour confirmer.' });
+  }
+  try {
+    const result = await accountPool.query('SELECT password_hash FROM accounts WHERE id = $1', [request.account.id]);
+    if (!await verifyPassword(password, result.rows[0]?.password_hash)) {
+      return response.status(401).json({ error: 'Mot de passe incorrect.' });
+    }
+    const deleted = await accountPool.query('SELECT COUNT(*)::int AS n FROM dossier_documents WHERE account_id = $1', [request.account.id]);
+    await accountPool.query('DELETE FROM accounts WHERE id = $1', [request.account.id]);
+    await logDocumentAccess(request.account.email, request.account.id, null, `suppression du compte par le client (${deleted.rows[0].n} document(s))`);
+    clearSessionCookie(response);
+    return response.json({ message: 'Votre compte, votre dossier et vos documents ont été supprimés définitivement.' });
+  } catch (error) {
+    console.error('Suppression du compte impossible :', error);
+    return response.status(500).json({ error: 'Impossible de supprimer le compte pour le moment.' });
+  }
+});
+
+// Le dépôt est ouvert à tous quand DOCUMENTS_UPLOAD_ENABLED vaut « true », ou seulement aux comptes
+// marqués « pilote » en base (phase de test en production, sans ouverture au public).
+function canUpload(account) {
+  return uploadsEnabled || (Boolean(documentsKey) && account.documents_pilot === true);
+}
+
 app.get('/api/account/dossier', documentRateLimit, requireAccount(), async (request, response) => {
   try {
     await purgeExpiredDocuments();
     const view = await loadDossierView(request.account.id);
-    return response.json({ ...view, uploadsEnabled, retentionDays, documentKinds });
+    return response.json({ ...view, uploadsEnabled: canUpload(request.account), retentionDays, documentKinds });
   } catch (error) {
     console.error('Lecture du dossier impossible :', error);
     return response.status(500).json({ error: 'Impossible de charger votre dossier.' });
@@ -776,7 +901,7 @@ app.put('/api/account/dossier', documentRateLimit, requireAccount(), async (requ
 
 app.post('/api/account/documents', documentRateLimit, requireAccount(),
   express.raw({ type: 'application/octet-stream', limit: maxDocumentBytes }), async (request, response) => {
-    if (!uploadsEnabled) {
+    if (!canUpload(request.account)) {
       return response.status(403).json({ error: 'Le dépôt sécurisé de documents n’est pas encore ouvert. N’envoyez aucun document par email.' });
     }
     const kind = request.query.kind;
@@ -785,6 +910,9 @@ app.post('/api/account/documents', documentRateLimit, requireAccount(),
     if (!Buffer.isBuffer(content) || content.length === 0) return response.status(400).json({ error: 'Fichier vide ou illisible.' });
     const type = detectDocumentType(content);
     if (!type) return response.status(400).json({ error: 'Format refusé : seuls les fichiers PDF, JPEG et PNG sont acceptés.' });
+    if (type.mime === 'application/pdf' && /\/(JavaScript|Launch|EmbeddedFiles?)\b/.test(content.toString('latin1'))) {
+      return response.status(400).json({ error: 'Ce PDF contient du contenu actif (script ou fichier intégré) et a été refusé. Enregistrez-le à nouveau en PDF simple ou envoyez une photo.' });
+    }
 
     const documentId = crypto.randomUUID();
     const accountId = request.account.id;
@@ -982,7 +1110,10 @@ app.get('/api/cron/purge-documents', async (request, response) => {
   }
   if (!accountPool || !accountStoreReady) return sendAccountUnavailable(response);
   try {
-    return response.json({ deleted: await purgeExpiredDocuments() });
+    const deleted = await purgeExpiredDocuments();
+    await accountPool.query('DELETE FROM rate_limits WHERE reset_at <= NOW()');
+    await accountPool.query('DELETE FROM account_sessions WHERE expires_at <= NOW()');
+    return response.json({ deleted });
   } catch (error) {
     console.error('Purge des documents impossible :', error);
     return response.status(500).json({ error: 'Purge impossible.' });
@@ -1178,6 +1309,16 @@ async function initializeAccountStore() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         resolved_at TIMESTAMPTZ
       );
+      CREATE TABLE IF NOT EXISTS rate_limits (
+        key TEXT PRIMARY KEY,
+        hits INTEGER NOT NULL,
+        reset_at TIMESTAMPTZ NOT NULL
+      );
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS documents_pilot BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE account_sessions ADD COLUMN IF NOT EXISTS admin_code_hash TEXT;
+      ALTER TABLE account_sessions ADD COLUMN IF NOT EXISTS admin_code_expires_at TIMESTAMPTZ;
+      ALTER TABLE account_sessions ADD COLUMN IF NOT EXISTS admin_code_attempts INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE account_sessions ADD COLUMN IF NOT EXISTS admin_verified_at TIMESTAMPTZ;
       CREATE TABLE IF NOT EXISTS document_access_log (
         id BIGSERIAL PRIMARY KEY,
         actor_email TEXT NOT NULL,
