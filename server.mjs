@@ -676,11 +676,11 @@ app.use((_request, response, next) => {
   next();
 });
 
-app.get('/robots.txt', (_request, response, next) => {
-  if (!previewDeployment) return next();
+app.get('/robots.txt', (_request, response) => {
   response.type('text/plain');
   response.setHeader('Cache-Control', 'no-store');
-  return response.send('User-agent: *\nDisallow: /\n');
+  if (previewDeployment) return response.send('User-agent: *\nDisallow: /\n');
+  return response.send('User-agent: *\nAllow: /\nDisallow: /admin.html\nDisallow: /apercu-emails.html\nDisallow: /api/\n\nSitemap: https://www.facilepro.fr/sitemap.xml\n');
 });
 
 app.get('/api/ready', async (_request, response) => {
