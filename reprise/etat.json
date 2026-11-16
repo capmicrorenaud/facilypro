@@ -2,8 +2,7 @@
   "projet": "Facile Pro",
   "depot": "capmicrorenaud/facilypro",
   "branche": "reprise/reglement-unique-sasu",
-  "dernierCommitPousse": "ea8d6c2",
-  "coupurePrevue": "2026-11-16 13:45-16:45",
+  "dernierCommitPousse": "bd4f85b",
   "repriseSansRecommencer": {
     "nePasRefaire": [
       "Ne pas recréer la base Neon facilepro-essai.",
@@ -13,20 +12,19 @@
       "Ne pas afficher de secret et ne rien committer depuis data/, .env ou .vercel."
     ],
     "dejaFait": [
-      "Branche poussée sur GitHub : reprise/reglement-unique-sasu.",
-      "Base gratuite Neon facilepro-essai, équipe cap-micro, projet facilypro, environnement Preview seulement. Créée le 2026-11-16 à 12:49. Aucun dossier client dedans au moment de la coupure.",
-      "Réglages de prévisualisation enregistrés séparément de la production : capture d’emails, clé de documents, secret de purge, adresse de la prévisualisation.",
+      "Branche poussée sur GitHub : reprise/reglement-unique-sasu, commit bd4f85b.",
+      "Base gratuite Neon facilepro-essai réutilisée, équipe cap-micro, projet facilypro, environnement Preview seulement.",
+      "Aperçu local relancé après le redémarrage : http://127.0.0.1:4242, base PostgreSQL conservée, prêt pour de vrais clients : non.",
       "Prévisualisation protégée : https://facilypro-git-reprise-reglement-unique-sasu-cap-micro.vercel.app",
-      "Sans connexion Vercel, cette adresse répond 302 vers l’identification Vercel et envoie X-Robots-Tag: noindex.",
-      "Le site public n’a pas été redéployé. Dernière production : il y a 22 jours.",
-      "Tests locaux fictifs réussis : 7 parcours en mémoire, et auparavant 1 persistance PostgreSQL réelle.",
-      "Parcours navigateur local réussi avec camille.apercu@exemple.test, devis 10 000 € à 1 200 €, second versement 0, puis présence après redémarrage."
+      "Le robots.txt de cette prévisualisation interdit toute indexation. Le site public n’a pas été redéployé : /api/ready y répond encore 404.",
+      "Parcours fictif hébergé vérifié le 2026-11-16 : camille.hebergement@exemple.test, email non envoyé, devis 10 000 €, commission 1 200 €, second versement 0, documents non émis, autre.hebergement@exemple.test ne voit pas le dossier, accès admin refusé.",
+      "La sauvegarde locale avec restauration avait déjà réussi. La copie de la base hébergée n’a pas été refaite : le téléchargement du secret de connexion a été bloqué."
     ],
-    "prochaineEtapeExacte": "Relancer uniquement le parcours fictif sur la prévisualisation hébergée. Le script data/hosted-journey.mjs s’est arrêté à POST /api/account/register parce que l’appel vercel curl a renvoyé un code d’erreur ; le message détaillé n’a pas été conservé. Corriger l’appel pour afficher le code HTTP sans secret, puis recommencer l’inscription fictive, la boîte de test, le devis, l’isolation d’un second compte et le refus d’administration. Ne pas renvoyer d’email à un vrai client."
+    "prochaineEtapeExacte": "Attendre l’immatriculation pour saisir les informations officielles de la SASU, puis décider ensemble du basculement du site public et de l’envoi réel des emails. Ne rien inventer, ne pas envoyer de message à un vrai client, ne pas lancer les publicités."
   },
   "previsualisationHebergee": "https://facilypro-git-reprise-reglement-unique-sasu-cap-micro.vercel.app",
   "previsualisationLocale": "http://127.0.0.1:4242/",
   "pretPourDeVraisClients": false,
   "videos": "Aucune vidéo n’était en cours.",
-  "misAJourLe": "2026-11-16T13:05:00+01:00"
+  "misAJourLe": "2026-11-16T16:45:00+01:00"
 }
