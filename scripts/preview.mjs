@@ -26,7 +26,7 @@ process.env.PUBLIC_BASE_URL = `http://127.0.0.1:${appPort}`;
 process.env.MAIL_FROM = 'Facile Pro <contact@facilepro.fr>';
 process.env.BUSINESS_NAME = 'Facile Pro';
 process.env.BUSINESS_EMAIL = 'contact@facilepro.fr';
-process.env.BUSINESS_ADDRESS = 'Route de Belcastel, 12390 Mayran, France';
+process.env.BUSINESS_ADDRESS = 'Siège non publié';
 process.env.ADMIN_EMAILS = 'admin@exemple.test';
 process.env.DOCUMENTS_UPLOAD_ENABLED = 'true';
 process.env.DOCUMENTS_ENCRYPTION_KEY = encryptionKey;
@@ -40,7 +40,7 @@ fs.writeFileSync(path.join(root, 'data', 'local.env'), [
   'MAIL_FROM=Facile Pro <contact@facilepro.fr>',
   'BUSINESS_NAME=Facile Pro',
   'BUSINESS_EMAIL=contact@facilepro.fr',
-  'BUSINESS_ADDRESS=Route de Belcastel, 12390 Mayran, France',
+  'BUSINESS_ADDRESS=Siège non publié',
   'ADMIN_EMAILS=admin@exemple.test',
   'DOCUMENTS_UPLOAD_ENABLED=true',
   'CRON_SECRET=apercu-local-uniquement'

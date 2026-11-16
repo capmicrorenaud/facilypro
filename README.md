@@ -27,4 +27,4 @@ L’inscription envoie un lien de confirmation. Les devis signés sont rattaché
 
 ## Informations officielles
 
-Tant que la dénomination, le président, le siège, le capital, le SIREN, le SIRET et le RCS ne sont pas enregistrés, les mentions légales indiquent que les identifiants ne sont pas encore attribués. L’adresse de contact actuelle reste Route de Belcastel, 12390 Mayran. Le siège de la SASU n’est affiché qu’après saisie réelle.
+Tant que la dénomination, le président, le siège, le capital, le SIREN, le SIRET et le RCS ne sont pas enregistrés, les mentions légales indiquent que les identifiants ne sont pas encore attribués. Aucune adresse personnelle n’est publiée. Le siège de la SASU, à Paris, n’est affiché qu’après confirmation de la domiciliation.

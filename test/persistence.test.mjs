@@ -33,7 +33,7 @@ function startServer(port, databaseUrl) {
       MAIL_FROM: 'Facile Pro <contact@facilepro.fr>',
       BUSINESS_NAME: 'Facile Pro',
       BUSINESS_EMAIL: 'contact@facilepro.fr',
-      BUSINESS_ADDRESS: 'Route de Belcastel, 12390 Mayran, France',
+      BUSINESS_ADDRESS: 'Siège non publié',
       ADMIN_EMAILS: 'admin@exemple.test',
       DOCUMENTS_UPLOAD_ENABLED: 'true',
       DOCUMENTS_ENCRYPTION_KEY: key,

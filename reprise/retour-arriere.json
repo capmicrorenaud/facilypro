@@ -1,0 +1,15 @@
+{
+  "projet": "Facile Pro",
+  "sitePublic": "https://www.facilepro.fr",
+  "versionEnLigneAvantDeploiement": {
+    "deploymentId": "dpl_AtgG37HHsGqYqLHAgo2wft7Xcmt2",
+    "url": "https://facilypro-p0ixlxgap-cap-micro.vercel.app",
+    "cible": "production",
+    "creeLe": "2026-10-25T14:33:40+01:00",
+    "commitGit": "d9c685c3bdb8dd2a36f37b4c4e59aad64c404b29",
+    "branche": "master"
+  },
+  "retourArriere": "Promouvoir de nouveau https://facilypro-p0ixlxgap-cap-micro.vercel.app sur la production du projet facilypro, équipe cap-micro. Ne pas supprimer ce déploiement.",
+  "separationDesDonnees": "La base de prévisualisation facilepro-essai reste réservée à l’environnement Preview. La production conserve sa propre base, déjà enregistrée, sans y copier les comptes fictifs.",
+  "enregistreLe": "2026-11-16T18:05:00+01:00"
+}

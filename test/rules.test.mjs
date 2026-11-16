@@ -55,6 +55,7 @@ test('le site public ne réintroduit pas Stripe ni l’ancien SIRET', async () =
   for (const source of [page, server, admin]) {
     assert.equal(source.includes('stripe'), false);
     assert.equal(source.includes(RETIRED_SIRET), false);
+    assert.equal(source.includes('Belcastel'), false);
   }
   assert.match(page, /Facile Pro/);
   assert.match(page, /Signer le devis/);

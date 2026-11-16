@@ -626,7 +626,6 @@ function publicCompany(profile) {
     rcs: ready ? profile.rcs : null,
     vatNumber: ready ? profile.vatNumber : null,
     contactName: 'Renaud Pierre Jacques Devevey',
-    contactAddress: process.env.BUSINESS_ADDRESS,
     contactEmail: process.env.BUSINESS_EMAIL
   };
 }
