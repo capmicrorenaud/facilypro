@@ -13,7 +13,9 @@ Les documents commerciaux (devis PDF et facture) ne sont émis que si les inform
 3. Copier `.env.example` vers `.env` et renseigner une base PostgreSQL ainsi qu’un SMTP de test.
 4. Démarrer avec `npm start`, puis ouvrir l’URL indiquée. Ne pas ouvrir la page via `file://`.
 
-`npm run preview` démarre une prévisualisation locale, avec une base en mémoire et des emails capturés. Elle ne contacte aucun client réel. `npm test` vérifie le calcul, l’inscription, la connexion, les droits d’accès, la signature, le blocage des documents et la confirmation administrative.
+`npm run preview` démarre une prévisualisation locale sur PostgreSQL (`data/postgres`). Les comptes, dossiers, pièces, devis et emails locaux restent après un redémarrage. `npm run backup` écrit une sauvegarde dans `data/backups`. Aucun email réel ne part tant que le SMTP n’est pas renseigné. `npm test` vérifie le calcul, les droits, la persistance après redémarrage, la sauvegarde et la restauration.
+
+Le site n’est pas prêt pour de vrais clients tant que ces éléments manquent : une base PostgreSQL de production (`DATABASE_URL`), un SMTP réel (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`), une clé `DOCUMENTS_ENCRYPTION_KEY` conservée hors du dépôt, `CRON_SECRET`, `ADMIN_EMAILS`, puis les identifiants officiels de la SASU après immatriculation. Ne pas les inventer et ne pas réutiliser ceux de l’entreprise radiée. `/api/ready` indique `readyForRealClients: false` tant que ce n’est pas le cas.
 
 ## Espace client et administration
 

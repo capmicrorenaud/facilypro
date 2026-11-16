@@ -24,9 +24,10 @@ const directory = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT) || 4242;
 const baseUrl = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const mailCapture = process.env.MAIL_CAPTURE === 'true';
+const smtpSettings = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS'];
+const smtpConfigured = !mailCapture && smtpSettings.every((setting) => process.env[setting]);
 const requiredSettings = [
   'PUBLIC_BASE_URL',
-  ...(mailCapture ? [] : ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS']),
   'MAIL_FROM',
   'BUSINESS_NAME',
   'BUSINESS_EMAIL',
@@ -39,6 +40,9 @@ const missingSettings = requiredSettings.filter((setting) => !process.env[settin
 // au lieu d'arrêter le processus (un arrêt fait échouer la fonction sur Vercel).
 if (missingSettings.length) {
   console.error(`Configuration manquante : ${missingSettings.join(', ')}`);
+}
+if (!smtpConfigured) {
+  console.error('Envoi réel d’emails inactif. Les messages sont conservés en base lorsque la capture locale est active ; aucun client réel n’est contacté.');
 }
 if (baseUrl && !/^https?:\/\//i.test(baseUrl)) {
   console.error('PUBLIC_BASE_URL doit être une URL http(s) valide.');
@@ -66,22 +70,63 @@ const documentKinds = {
 const { Pool } = pg;
 let accountPool = null;
 const capturedMail = [];
-const mailer = mailCapture
-  ? {
-      async sendMail(message) {
-        capturedMail.push({ ...message, capturedAt: new Date().toISOString() });
-        if (process.env.PREVIEW === 'true') {
-          console.log(`\n--- Email capturé pour ${message.to} ---\nSujet : ${message.subject}\n${message.text}\n`);
-        }
-        return { messageId: `capture-${capturedMail.length}` };
-      }
-    }
-  : nodemailer.createTransport({
+const smtpTransport = smtpConfigured
+  ? nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT),
       secure: process.env.SMTP_SECURE === 'true',
       auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-    });
+    })
+  : null;
+const mailer = { sendMail: deliverMail };
+
+async function deliverMail(message) {
+  const id = crypto.randomUUID();
+  if (accountPool && accountStoreReady) {
+    await accountPool.query(
+      `INSERT INTO outbound_emails (id, recipient, subject, body, attachment_count, status)
+       VALUES ($1, $2, $3, $4, $5, 'recorded')`,
+      [id, message.to, message.subject, message.text || '', message.attachments?.length || 0]
+    );
+  }
+  if (mailCapture) {
+    capturedMail.push({ ...message, id, capturedAt: new Date().toISOString() });
+    if (accountPool && accountStoreReady) {
+      await accountPool.query(`UPDATE outbound_emails SET status = 'spooled' WHERE id = $1`, [id]);
+    }
+    if (process.env.PREVIEW === 'true') {
+      console.log(`\n--- Email conservé en base pour ${message.to} ---\nSujet : ${message.subject}\n${message.text}\n`);
+    }
+    return { messageId: id, delivered: false };
+  }
+  if (!smtpTransport) {
+    if (accountPool && accountStoreReady) {
+      await accountPool.query(`UPDATE outbound_emails SET status = 'not_configured' WHERE id = $1`, [id]);
+    }
+    const error = new Error('EMAIL_NOT_CONFIGURED');
+    error.code = 'EMAIL_NOT_CONFIGURED';
+    throw error;
+  }
+  try {
+    const info = await smtpTransport.sendMail(message);
+    if (accountPool && accountStoreReady) {
+      await accountPool.query(`UPDATE outbound_emails SET status = 'sent', sent_at = NOW() WHERE id = $1`, [id]);
+    }
+    return { ...info, delivered: true };
+  } catch (error) {
+    if (accountPool && accountStoreReady) {
+      await accountPool.query(
+        `UPDATE outbound_emails SET status = 'failed', error = $2 WHERE id = $1`,
+        [id, String(error.message || error).slice(0, 500)]
+      );
+    }
+    throw error;
+  }
+}
+
+function emailStatusMessage(delivery, sentText, storedText) {
+  return delivery?.delivered ? sentText : storedText;
+}
 const app = express();
 const processing = new Set();
 const scrypt = promisify(crypto.scrypt);
@@ -629,6 +674,33 @@ app.use((_request, response, next) => {
   next();
 });
 
+app.get('/api/ready', async (_request, response) => {
+  let officialComplete = false;
+  let missing = [];
+  if (accountPool && accountStoreReady) {
+    try {
+      const profile = await loadCompanyProfile();
+      missing = missingOfficialLabels(profile);
+      officialComplete = commercialDocumentsAllowed(profile);
+    } catch (error) {
+      console.error('Lecture de préparation impossible :', error);
+    }
+  }
+  const database = Boolean(accountPool && accountStoreReady);
+  const persistentDatabase = database && process.env.DATABASE_URL !== 'pglite:memory';
+  const readyForRealClients = persistentDatabase && smtpConfigured && officialComplete && Boolean(documentsKey);
+  response.setHeader('Cache-Control', 'no-store');
+  return response.json({
+    database,
+    persistentDatabase,
+    emailDelivery: smtpConfigured,
+    officialCompanyComplete: officialComplete,
+    missingOfficialFields: missing,
+    documentsKeyConfigured: Boolean(documentsKey),
+    readyForRealClients
+  });
+});
+
 app.use('/api', (_request, response, next) => {
   if (configured) return next();
   return response.status(503).json({ error: 'Le service est en cours de configuration. Réessayez plus tard ou appelez le 06 89 20 41 17.' });
@@ -673,8 +745,9 @@ app.post('/api/account/register', accountRateLimit, async (request, response) =>
     const verificationUrl = new URL('/', baseUrl);
     verificationUrl.searchParams.set('verify-email', verificationToken);
     verificationUrl.hash = 'compte';
+    let delivery;
     try {
-      await mailer.sendMail({
+      delivery = await mailer.sendMail({
         from: process.env.MAIL_FROM,
         to: email,
         subject: 'Confirmez votre adresse email - Facile Pro',
@@ -689,9 +762,21 @@ app.post('/api/account/register', accountRateLimit, async (request, response) =>
       });
     } catch (error) {
       console.error('Envoi de l’email de confirmation impossible :', error);
-      return response.status(502).json({ error: 'Le compte est enregistré, mais l’email de confirmation n’a pas pu être envoyé. Réessayez l’inscription.' });
+      const notConfigured = error.code === 'EMAIL_NOT_CONFIGURED';
+      return response.status(notConfigured ? 503 : 502).json({
+        error: notConfigured
+          ? 'Le compte est enregistré, mais l’envoi réel d’emails n’est pas configuré. Aucun message n’est parti.'
+          : 'Le compte est enregistré, mais l’email de confirmation n’a pas pu être envoyé. Réessayez l’inscription.'
+      });
     }
-    return response.json({ message: 'Un lien de confirmation vient d’être envoyé à votre adresse email.' });
+    return response.json({
+      emailDelivered: delivery.delivered,
+      message: emailStatusMessage(
+        delivery,
+        'Un lien de confirmation vient d’être envoyé à votre adresse email.',
+        'Compte enregistré. Aucun email réel n’est parti : le lien est conservé dans la base locale.'
+      )
+    });
   } catch (error) {
     console.error('Création du compte impossible :', error);
     return response.status(500).json({ error: 'Impossible de créer le compte pour le moment.' });
@@ -845,7 +930,7 @@ app.post('/api/admin/code/request', adminCodeRateLimit, requireAccount(), async 
        WHERE token_hash = $2`,
       [hashAdminCode(request.account.session_hash, code), request.account.session_hash]
     );
-    await mailer.sendMail({
+    const delivery = await mailer.sendMail({
       from: process.env.MAIL_FROM,
       to: request.account.email,
       subject: `Code d’accès administrateur Facile Pro : ${code}`,
@@ -855,7 +940,14 @@ app.post('/api/admin/code/request', adminCodeRateLimit, requireAccount(), async 
         'Il est valable 10 minutes. Si vous n’êtes pas à l’origine de cette demande, changez votre mot de passe.'
       ].join('\n')
     });
-    return response.json({ message: 'Un code à 6 chiffres vient d’être envoyé à votre adresse email.' });
+    return response.json({
+      emailDelivered: delivery.delivered,
+      message: emailStatusMessage(
+        delivery,
+        'Un code à 6 chiffres vient d’être envoyé à votre adresse email.',
+        'Code enregistré dans la base locale. Aucun email réel n’est parti.'
+      )
+    });
   } catch (error) {
     console.error('Envoi du code administrateur impossible :', error);
     return response.status(502).json({ error: 'Impossible d’envoyer le code pour le moment.' });
@@ -1202,23 +1294,49 @@ app.post('/api/callback-request', formRateLimit, async (request, response) => {
       'INSERT INTO callback_requests (id, phone) VALUES ($1, $2)',
       [crypto.randomUUID(), phone]
     );
-    await mailer.sendMail({
+    const delivery = await mailer.sendMail({
       from: process.env.MAIL_FROM,
       to: process.env.BUSINESS_EMAIL,
       subject: 'Demande de rappel depuis le site Facile Pro',
       text: `Une demande de rappel a été reçue depuis le site Facile Pro.\n\nNuméro de téléphone : ${phone}`
     });
-    return response.json({ message: 'Votre demande de rappel a bien été envoyée.' });
+    return response.json({
+      emailDelivered: delivery.delivered,
+      message: emailStatusMessage(
+        delivery,
+        'Votre demande de rappel a bien été envoyée.',
+        'Votre demande est enregistrée. L’email réel vers le cabinet n’est pas actif.'
+      )
+    });
   } catch (error) {
     console.error('Envoi de la demande de rappel impossible :', error);
     return response.status(502).json({ error: 'Impossible d’envoyer votre demande pour le moment. Réessayez plus tard.' });
   }
 });
 
-app.get('/api/preview/mailbox', (_request, response) => {
+app.get('/api/preview/mailbox', async (_request, response) => {
   if (!mailCapture || process.env.VERCEL) return response.status(404).json({ error: 'Introuvable.' });
   response.setHeader('Cache-Control', 'no-store');
+  if (accountPool && accountStoreReady) {
+    const result = await accountPool.query(
+      `SELECT recipient, subject, body, status, created_at
+       FROM outbound_emails ORDER BY created_at`
+    );
+    return response.json({
+      durable: true,
+      emailDelivery: false,
+      messages: result.rows.map((row) => ({
+        to: row.recipient,
+        subject: row.subject,
+        text: row.body,
+        status: row.status,
+        capturedAt: row.created_at
+      }))
+    });
+  }
   return response.json({
+    durable: false,
+    emailDelivery: false,
     messages: capturedMail.map((message) => ({
       to: message.to,
       subject: message.subject,
@@ -1551,6 +1669,17 @@ async function initializeAccountStore() {
         phone TEXT NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS outbound_emails (
+        id UUID PRIMARY KEY,
+        recipient TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        body TEXT NOT NULL,
+        attachment_count INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL,
+        error TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        sent_at TIMESTAMPTZ
+      );
     `;
     for (const statement of schema.split(';').map((part) => part.trim()).filter(Boolean)) {
       await accountPool.query(statement);
@@ -1585,6 +1714,12 @@ async function createAccountPool() {
 
 accountPool = await createAccountPool();
 await initializeAccountStore();
+if (accountStoreReady) {
+  const profile = await loadCompanyProfile();
+  const officialComplete = commercialDocumentsAllowed(profile);
+  const readyForRealClients = process.env.DATABASE_URL !== 'pglite:memory' && smtpConfigured && officialComplete && Boolean(documentsKey);
+  console.log(`Base prête. Persistance : ${process.env.DATABASE_URL === 'pglite:memory' ? 'mémoire seule' : 'PostgreSQL'}. Email réel : ${smtpConfigured ? 'actif' : 'inactif'}. Société complète : ${officialComplete ? 'oui' : 'non'}. Prêt pour de vrais clients : ${readyForRealClients ? 'oui' : 'non'}.`);
+}
 
 if (!process.env.VERCEL && process.env.LISTEN !== 'false') {
   app.listen(port, () => console.log(`Facile Pro est disponible sur http://localhost:${port}`));
