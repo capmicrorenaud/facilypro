@@ -8,23 +8,28 @@ import rateLimit from 'express-rate-limit';
 import nodemailer from 'nodemailer';
 import PDFDocument from 'pdfkit';
 import pg from 'pg';
-import Stripe from 'stripe';
+import {
+  commercialDocumentsAllowed,
+  commissionOnGrantedArce,
+  computeArce,
+  DISPLAY_NAME,
+  missingOfficialLabels,
+  paymentTerms,
+  PLANNED_SASU_OPENING_DATE,
+  readOfficialUpdate
+} from './lib/rules.mjs';
+import { adDrafts, seoChecklist } from './lib/preparation.mjs';
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT) || 4242;
 const baseUrl = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+const mailCapture = process.env.MAIL_CAPTURE === 'true';
 const requiredSettings = [
   'PUBLIC_BASE_URL',
-  'STRIPE_SECRET_KEY',
-  'STRIPE_WEBHOOK_SECRET',
-  'SMTP_HOST',
-  'SMTP_PORT',
-  'SMTP_USER',
-  'SMTP_PASS',
+  ...(mailCapture ? [] : ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS']),
   'MAIL_FROM',
   'BUSINESS_NAME',
   'BUSINESS_EMAIL',
-  'BUSINESS_SIRET',
   'BUSINESS_ADDRESS',
   'DATABASE_URL'
 ];
@@ -58,15 +63,25 @@ const documentKinds = {
   reliquat_are: 'Justificatif du reliquat ARE'
 };
 
-const stripe = configured ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 const { Pool } = pg;
-const accountPool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env.DATABASE_URL }) : null;
-const mailer = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT),
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-});
+let accountPool = null;
+const capturedMail = [];
+const mailer = mailCapture
+  ? {
+      async sendMail(message) {
+        capturedMail.push({ ...message, capturedAt: new Date().toISOString() });
+        if (process.env.PREVIEW === 'true') {
+          console.log(`\n--- Email capturé pour ${message.to} ---\nSujet : ${message.subject}\n${message.text}\n`);
+        }
+        return { messageId: `capture-${capturedMail.length}` };
+      }
+    }
+  : nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    });
 const app = express();
 const processing = new Set();
 const scrypt = promisify(crypto.scrypt);
@@ -86,6 +101,7 @@ class PostgresRateLimitStore {
   }
 
   async increment(key) {
+    if (!accountPool) return this.memoryIncrement(key);
     const result = await accountPool.query(
       `INSERT INTO rate_limits (key, hits, reset_at) VALUES ($1, 1, NOW() + make_interval(secs => $2))
        ON CONFLICT (key) DO UPDATE SET
@@ -98,11 +114,30 @@ class PostgresRateLimitStore {
   }
 
   async decrement(key) {
+    if (!accountPool) return;
     await accountPool.query('UPDATE rate_limits SET hits = GREATEST(hits - 1, 0) WHERE key = $1', [`${this.prefix}:${key}`]);
   }
 
   async resetKey(key) {
+    if (!accountPool) {
+      this.memory.delete(`${this.prefix}:${key}`);
+      return;
+    }
     await accountPool.query('DELETE FROM rate_limits WHERE key = $1', [`${this.prefix}:${key}`]);
+  }
+
+  memoryIncrement(key) {
+    if (!this.memory) this.memory = new Map();
+    const storageKey = `${this.prefix}:${key}`;
+    const now = Date.now();
+    const current = this.memory.get(storageKey);
+    if (!current || current.resetAt <= now) {
+      const resetAt = now + this.windowSeconds * 1000;
+      this.memory.set(storageKey, { hits: 1, resetAt });
+      return { totalHits: 1, resetTime: new Date(resetAt) };
+    }
+    current.hits += 1;
+    return { totalHits: current.hits, resetTime: new Date(current.resetAt) };
   }
 }
 
@@ -112,7 +147,7 @@ function makeRateLimit(prefix, limit, message) {
     limit,
     standardHeaders: 'draft-8',
     legacyHeaders: false,
-    store: accountPool ? new PostgresRateLimitStore(prefix) : undefined,
+    store: new PostgresRateLimitStore(prefix),
     passOnStoreError: true,
     handler: (_request, response) => response.status(429).json({ error: message })
   });
@@ -249,11 +284,15 @@ function readSignature(value) {
 }
 
 // Les devis sont stockés dans PostgreSQL : le disque d'un hébergement serverless n'est pas persistant.
+function asQuote(data) {
+  return typeof data === 'string' ? JSON.parse(data) : data;
+}
+
 async function saveQuote(quote) {
   await accountPool.query(
-    `INSERT INTO quotes (id, client_email, data) VALUES ($1, $2, $3)
+    `INSERT INTO quotes (id, client_email, data) VALUES ($1, $2, $3::jsonb)
      ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
-    [quote.id, quote.clientEmail.toLowerCase(), quote]
+    [quote.id, quote.clientEmail.toLowerCase(), JSON.stringify(quote)]
   );
 }
 
@@ -265,30 +304,7 @@ async function loadQuote(id) {
     error.code = 'ENOENT';
     throw error;
   }
-  return result.rows[0].data;
-}
-
-// Estimation ARCE (service-public.gouv.fr F15252) : 60 % du capital restant des droits ARE,
-// moins 3 % de participation aux retraites complémentaires, versé en deux moitiés à 6 mois d'écart.
-function computeArce(remainingDays, dailyAllowanceCents, referenceDate) {
-  const remainingRightsCents = remainingDays * dailyAllowanceCents;
-  const grossCapitalCents = Math.round(remainingRightsCents * 0.6);
-  const retirementDeductionCents = Math.round(grossCapitalCents * 0.03);
-  const netCapitalCents = grossCapitalCents - retirementDeductionCents;
-  const firstPaymentCents = Math.round(netCapitalCents / 2);
-  const secondPaymentDate = new Date(`${referenceDate}T00:00:00Z`);
-  secondPaymentDate.setUTCMonth(secondPaymentDate.getUTCMonth() + 6);
-  return {
-    remainingRightsCents,
-    grossCapitalCents,
-    retirementDeductionCents,
-    netCapitalCents,
-    firstPaymentCents,
-    firstPaymentDate: referenceDate,
-    secondPaymentCents: netCapitalCents - firstPaymentCents,
-    secondPaymentDate: secondPaymentDate.toISOString().slice(0, 10),
-    commissionCents: Math.round(netCapitalCents * 0.12)
-  };
+  return asQuote(result.rows[0].data);
 }
 
 function readDossier(body) {
@@ -412,12 +428,17 @@ function makePdf(createContent) {
 }
 
 function drawHeader(pdf, title, quote, reference) {
+  const profile = quote.companySnapshot;
   pdf.fillColor('#0d1b2a').fontSize(21).text(title);
   pdf.moveDown(0.6);
   pdf.fillColor('#334155').fontSize(10);
-  pdf.text(process.env.BUSINESS_NAME);
-  pdf.text(process.env.BUSINESS_ADDRESS);
-  pdf.text(`SIRET : ${process.env.BUSINESS_SIRET}`);
+  pdf.text(profile.legalName);
+  pdf.text(`${profile.legalForm} · ouverture ${profile.openingDate}`);
+  pdf.text(profile.registeredOffice);
+  pdf.text(`SIREN : ${profile.siren} · SIRET : ${profile.siret}`);
+  pdf.text(`RCS : ${profile.rcs}`);
+  pdf.text(`Capital : ${formatMoney(profile.shareCapitalCents)} · Président : ${profile.presidentName}`);
+  if (profile.vatNumber) pdf.text(`TVA : ${profile.vatNumber}`);
   pdf.text(process.env.BUSINESS_EMAIL);
   pdf.moveDown();
   pdf.fillColor('#17212f').fontSize(10);
@@ -433,19 +454,15 @@ function drawQuoteDetails(pdf, quote) {
   pdf.moveDown(0.5);
   pdf.fontSize(11);
   pdf.text(`Prestation : ${quote.service}`);
-  pdf.text(`Montant total de l’aide déclaré : ${formatMoney(quote.aidAmountCents)}`);
-  pdf.text(`Commission (12 %) : ${formatMoney(quote.commissionCents)}`);
-  pdf.text(`Premier versement du client : ${formatMoney(quote.commissionCents)}`);
-  pdf.text(`Somme totale à payer : ${formatMoney(quote.commissionCents)}`);
+  pdf.text(`Montant total de l’ARCE accordée : ${formatMoney(quote.aidAmountCents)}`);
+  pdf.text(`Commission unique (12 %) : ${formatMoney(quote.commissionCents)}`);
+  pdf.text(`Commission sur le second versement : ${formatMoney(0)}`);
+  pdf.text(`Somme totale due : ${formatMoney(quote.commissionCents)}`);
+  pdf.text('Échéance : après réception du premier versement ARCE, sur confirmation administrative.');
 }
 
 async function createDocuments(quote) {
   const reference = quote.id.slice(0, 8).toUpperCase();
-  const paymentTerms = [
-    'La commission de 12 % est calculée sur le montant total de l’aide déclaré au devis.',
-    'La totalité de la commission est due et réglée en un seul versement dès le premier déblocage de l’ARCE.',
-    'Le paiement de cette commission solde l’ensemble des frais de notre prestation.'
-  ];
 
   const quotePdf = await makePdf((pdf) => {
     drawHeader(pdf, 'Devis accepté', quote, `DEV-${reference}`);
@@ -461,11 +478,12 @@ async function createDocuments(quote) {
   });
 
   const invoicePdf = await makePdf((pdf) => {
-    drawHeader(pdf, 'Facture acquittée', quote, `FAC-${reference}`);
+    drawHeader(pdf, 'Facture', quote, `FAC-${reference}`);
     drawQuoteDetails(pdf, quote);
     pdf.moveDown();
-    pdf.fontSize(12).text(`Montant réglé : ${formatMoney(quote.commissionCents)}`);
-    pdf.fontSize(10).text(`Paiement confirmé le : ${new Date(quote.paidAt).toLocaleDateString('fr-FR')}`);
+    pdf.fontSize(12).text(`Règlement unique confirmé : ${formatMoney(quote.commissionCents)}`);
+    pdf.fontSize(10).text(`Confirmation administrative le : ${new Date(quote.settledAt).toLocaleDateString('fr-FR')}`);
+    pdf.fontSize(10).text('Cette confirmation intervient après réception du premier versement ARCE. Aucune commission n’est due sur le second versement.');
     pdf.moveDown();
     pdf.fontSize(12).text('Conditions', { underline: true });
     pdf.moveDown(0.5);
@@ -480,18 +498,19 @@ async function sendDocuments(quote) {
   await mailer.sendMail({
     from: process.env.MAIL_FROM,
     to: quote.clientEmail,
-    subject: `Votre devis signé et votre facture acquittée - ${documents.reference}`,
+    subject: `Votre devis signé et votre facture - ${documents.reference}`,
     text: [
       `Bonjour ${quote.clientName},`,
       '',
-      'Votre paiement a été confirmé par Stripe. Vous trouverez en pièces jointes votre devis signé et votre facture acquittée.',
+      'L’administration a confirmé le règlement unique après réception du premier versement ARCE. Vous trouverez en pièces jointes le devis signé et la facture.',
       '',
-      `Montant total de l’aide déclaré : ${formatMoney(quote.aidAmountCents)}`,
-      `Commission de 12 % réglée : ${formatMoney(quote.commissionCents)}`,
+      `Montant total de l’ARCE accordée : ${formatMoney(quote.aidAmountCents)}`,
+      `Commission unique de 12 % : ${formatMoney(quote.commissionCents)}`,
+      'Commission sur le second versement : 0 €',
       '',
-      'La totalité de la commission est réglée en un seul versement dès le premier déblocage de l’ARCE et solde l’ensemble des frais de notre prestation.',
+      'Ce règlement unique clôture les frais de la prestation. La signature du devis n’a déclenché aucun paiement en ligne.',
       '',
-      process.env.BUSINESS_NAME
+      DISPLAY_NAME
     ].join('\n'),
     attachments: [
       { filename: `devis-DEV-${documents.reference}.pdf`, content: documents.quotePdf },
@@ -501,24 +520,96 @@ async function sendDocuments(quote) {
   return `FAC-${documents.reference}`;
 }
 
-async function processPaidCheckout(session) {
-  const quoteId = session.metadata?.quoteId;
-  if (!quoteId || session.payment_status !== 'paid') return;
-  if (processing.has(quoteId)) return;
-  processing.add(quoteId);
-  try {
-    const quote = await loadQuote(quoteId);
-    if (quote.checkoutSessionId !== session.id) throw new Error('La session Stripe ne correspond pas au devis.');
-    if (quote.documentsSentAt) return;
+function quoteEvent(type, label) {
+  return { at: new Date().toISOString(), type, label };
+}
 
-    quote.paymentStatus = 'paid';
-    quote.paidAt ||= new Date().toISOString();
-    await saveQuote(quote);
+function publicQuote(quote) {
+  return {
+    reference: quote.id.slice(0, 8).toUpperCase(),
+    service: quote.service,
+    aidAmountCents: quote.aidAmountCents,
+    commissionCents: quote.commissionCents,
+    secondInstallmentCommissionCents: 0,
+    totalDueCents: quote.commissionCents,
+    paymentStatus: quote.paymentStatus,
+    createdAt: quote.createdAt,
+    settledAt: quote.settledAt || null,
+    documentsSent: Boolean(quote.documentsSentAt),
+    documentsBlockReason: quote.documentsBlockReason || null,
+    events: quote.events || []
+  };
+}
+
+async function loadCompanyProfile() {
+  const result = await accountPool.query(
+    `SELECT legal_name, legal_form, opening_date::text, president_name, registered_office,
+            share_capital_cents, siren, siret, rcs, vat_number
+     FROM company_profile WHERE id = 1`
+  );
+  const row = result.rows[0];
+  return {
+    legalName: row?.legal_name || null,
+    legalForm: 'SASU',
+    openingDate: row?.opening_date || PLANNED_SASU_OPENING_DATE,
+    presidentName: row?.president_name || null,
+    registeredOffice: row?.registered_office || null,
+    shareCapitalCents: row?.share_capital_cents || null,
+    siren: row?.siren || null,
+    siret: row?.siret || null,
+    rcs: row?.rcs || null,
+    vatNumber: row?.vat_number || null
+  };
+}
+
+function publicCompany(profile) {
+  const missing = missingOfficialLabels(profile);
+  const ready = commercialDocumentsAllowed(profile);
+  return {
+    displayName: DISPLAY_NAME,
+    legalForm: 'SASU',
+    openingDate: profile.openingDate,
+    ready,
+    missing,
+    legalName: ready ? profile.legalName : null,
+    presidentName: ready ? profile.presidentName : null,
+    registeredOffice: ready ? profile.registeredOffice : null,
+    shareCapitalCents: ready ? profile.shareCapitalCents : null,
+    siren: ready ? profile.siren : null,
+    siret: ready ? profile.siret : null,
+    rcs: ready ? profile.rcs : null,
+    vatNumber: ready ? profile.vatNumber : null,
+    contactName: 'Renaud Pierre Jacques Devevey',
+    contactAddress: process.env.BUSINESS_ADDRESS,
+    contactEmail: process.env.BUSINESS_EMAIL
+  };
+}
+
+async function issueCommercialDocuments(quote) {
+  const profile = await loadCompanyProfile();
+  const missing = missingOfficialLabels(profile);
+  if (!commercialDocumentsAllowed(profile)) {
+    const reason = `Documents commerciaux bloqués. Informations officielles manquantes : ${missing.join(', ')}.`;
+    if (quote.documentsBlockReason !== reason) {
+      quote.documentsBlockReason = reason;
+      quote.events.push(quoteEvent('documents_bloques', reason));
+      await saveQuote(quote);
+    }
+    return { issued: false, missing };
+  }
+  if (quote.documentsSentAt) return { issued: true, missing: [] };
+  if (processing.has(quote.id)) return { issued: false, missing: [], pending: true };
+  processing.add(quote.id);
+  try {
+    quote.companySnapshot = profile;
     quote.invoiceNumber = await sendDocuments(quote);
     quote.documentsSentAt = new Date().toISOString();
+    quote.documentsBlockReason = null;
+    quote.events.push(quoteEvent('documents_emis', 'Devis signé et facture envoyés. Aucune commission sur le second versement.'));
     await saveQuote(quote);
+    return { issued: true, missing: [] };
   } finally {
-    processing.delete(quoteId);
+    processing.delete(quote.id);
   }
 }
 
@@ -541,30 +632,6 @@ app.use((_request, response, next) => {
 app.use('/api', (_request, response, next) => {
   if (configured) return next();
   return response.status(503).json({ error: 'Le service est en cours de configuration. Réessayez plus tard ou appelez le 06 89 20 41 17.' });
-});
-
-app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), async (request, response) => {
-  let event;
-  try {
-    event = stripe.webhooks.constructEvent(
-      request.body,
-      request.headers['stripe-signature'],
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
-  } catch (error) {
-    console.error('Webhook Stripe refusé : signature invalide.', error.message);
-    return response.status(400).send('Signature webhook invalide.');
-  }
-
-  if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
-    try {
-      await processPaidCheckout(event.data.object);
-    } catch (error) {
-      console.error('Traitement du paiement / envoi des documents impossible :', error);
-      return response.status(500).send('Erreur lors du traitement du paiement; Stripe réessaiera.');
-    }
-  }
-  return response.json({ received: true });
 });
 
 app.use(express.json({ limit: '2mb' }));
@@ -610,11 +677,11 @@ app.post('/api/account/register', accountRateLimit, async (request, response) =>
       await mailer.sendMail({
         from: process.env.MAIL_FROM,
         to: email,
-        subject: 'Confirmez votre adresse email - FacilePro',
+        subject: 'Confirmez votre adresse email - Facile Pro',
         text: [
           'Bonjour,',
           '',
-          'Pour confirmer votre adresse email et activer votre espace client FacilePro, ouvrez ce lien :',
+          'Pour confirmer votre adresse email et activer votre espace client Facile Pro, ouvrez ce lien :',
           verificationUrl.toString(),
           '',
           'Ce lien est valable 24 heures. Si vous n’avez pas demandé la création d’un compte, ignorez cet email.'
@@ -717,16 +784,7 @@ app.get('/api/account/quotes', async (request, response) => {
       'SELECT data FROM quotes WHERE client_email = $1 ORDER BY created_at DESC',
       [account.email]
     );
-    const quotes = result.rows.map(({ data: quote }) => ({
-      reference: quote.id.slice(0, 8).toUpperCase(),
-      service: quote.service,
-      aidAmountCents: quote.aidAmountCents,
-      commissionCents: quote.commissionCents,
-      paymentStatus: quote.paymentStatus,
-      createdAt: quote.createdAt,
-      paidAt: quote.paidAt || null,
-      documentsSent: Boolean(quote.documentsSentAt)
-    }));
+    const quotes = result.rows.map(({ data }) => publicQuote(asQuote(data)));
     return response.json({ quotes });
   } catch (error) {
     console.error('Lecture des devis du compte impossible :', error);
@@ -790,7 +848,7 @@ app.post('/api/admin/code/request', adminCodeRateLimit, requireAccount(), async 
     await mailer.sendMail({
       from: process.env.MAIL_FROM,
       to: request.account.email,
-      subject: `Code d’accès administrateur FacilePro : ${code}`,
+      subject: `Code d’accès administrateur Facile Pro : ${code}`,
       text: [
         `Votre code d’accès au tableau de bord administrateur : ${code}`,
         '',
@@ -1057,7 +1115,7 @@ app.post('/api/admin/dossiers/:accountId/requests', documentRateLimit, requireAc
       await mailer.sendMail({
         from: process.env.MAIL_FROM,
         to: account.rows[0].email,
-        subject: 'Pièces à compléter dans votre espace client FacilePro',
+        subject: 'Pièces à compléter dans votre espace client Facile Pro',
         text: [
           'Bonjour,',
           '',
@@ -1086,6 +1144,17 @@ app.post('/api/admin/dossiers/:accountId/requests', documentRateLimit, requireAc
 app.delete('/api/admin/dossiers/:accountId/documents', documentRateLimit, requireAccount({ admin: true }), async (request, response) => {
   if (!isUuid(request.params.accountId)) return response.status(404).json({ error: 'Dossier introuvable.' });
   try {
+    const account = await accountPool.query('SELECT email FROM accounts WHERE id = $1', [request.params.accountId]);
+    if (!account.rows[0]) return response.status(404).json({ error: 'Dossier introuvable.' });
+    const quotes = await accountPool.query('SELECT data FROM quotes WHERE client_email = $1', [account.rows[0].email]);
+    const blocking = quotes.rows.map((row) => asQuote(row.data)).filter((quote) => (
+      quote.paymentStatus !== 'reglement_unique_confirme' || !quote.documentsSentAt
+    ));
+    if (blocking.length) {
+      return response.status(409).json({
+        error: 'Clôture refusée : le règlement unique doit être confirmé et les documents commerciaux émis. Aucune commission n’est due sur le second versement.'
+      });
+    }
     const result = await accountPool.query('DELETE FROM dossier_documents WHERE account_id = $1 RETURNING id', [request.params.accountId]);
     await accountPool.query(
       `UPDATE arce_dossiers SET status = 'clos', updated_at = NOW() WHERE account_id = $1`,
@@ -1129,11 +1198,15 @@ app.post('/api/callback-request', formRateLimit, async (request, response) => {
   }
 
   try {
+    await accountPool.query(
+      'INSERT INTO callback_requests (id, phone) VALUES ($1, $2)',
+      [crypto.randomUUID(), phone]
+    );
     await mailer.sendMail({
       from: process.env.MAIL_FROM,
       to: process.env.BUSINESS_EMAIL,
-      subject: 'Demande de rappel depuis le site FacilePro',
-      text: `Une demande de rappel a été reçue depuis le site FacilePro.\n\nNuméro de téléphone : ${phone}`
+      subject: 'Demande de rappel depuis le site Facile Pro',
+      text: `Une demande de rappel a été reçue depuis le site Facile Pro.\n\nNuméro de téléphone : ${phone}`
     });
     return response.json({ message: 'Votre demande de rappel a bien été envoyée.' });
   } catch (error) {
@@ -1142,94 +1215,225 @@ app.post('/api/callback-request', formRateLimit, async (request, response) => {
   }
 });
 
-app.post('/api/checkout-session', formRateLimit, async (request, response) => {
-  if (!accountPool || !accountStoreReady) {
-    console.error('Base de données indisponible pour les devis :', accountStoreError);
-    return response.status(503).json({ error: 'Le paiement est temporairement indisponible. Réessayez plus tard.' });
-  }
-  let quote;
+app.get('/api/preview/mailbox', (_request, response) => {
+  if (!mailCapture || process.env.VERCEL) return response.status(404).json({ error: 'Introuvable.' });
+  response.setHeader('Cache-Control', 'no-store');
+  return response.json({
+    messages: capturedMail.map((message) => ({
+      to: message.to,
+      subject: message.subject,
+      text: message.text,
+      capturedAt: message.capturedAt
+    }))
+  });
+});
+
+app.get('/api/company/public', async (_request, response) => {
+  if (!accountPool || !accountStoreReady) return sendAccountUnavailable(response);
   try {
-    const clientName = readText(request.body?.clientName, 'Nom client', 120);
-    const clientEmail = normalizeEmail(request.body?.clientEmail);
-    const service = readText(request.body?.service, 'Prestation', 200);
-    const aidAmountCents = toCents(request.body.aidAmount);
-    const commissionCents = Math.round(aidAmountCents * 12 / 100);
-    if (commissionCents < 50) throw new Error('La commission doit être d’au moins 0,50 € pour un paiement Stripe.');
-    const signature = readSignature(request.body.signature);
-
-    quote = {
-      id: crypto.randomUUID(),
-      clientName,
-      clientEmail,
-      service,
-      aidAmountCents,
-      commissionCents,
-      signature,
-      createdAt: new Date().toISOString(),
-      paymentStatus: 'pending',
-      documentsSentAt: null
-    };
-    await saveQuote(quote);
-
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      customer_email: clientEmail,
-      client_reference_id: quote.id,
-      metadata: { quoteId: quote.id },
-      payment_intent_data: { metadata: { quoteId: quote.id } },
-      line_items: [{
-        quantity: 1,
-        price_data: {
-          currency: 'eur',
-          unit_amount: commissionCents,
-          product_data: {
-            name: 'Commission d’accompagnement ARCE (12 %)',
-            description: `Calculée sur le montant d’aide déclaré. ${service}`
-          }
-        }
-      }],
-      success_url: `${baseUrl}/?payment=success&session_id={CHECKOUT_SESSION_ID}#devis`,
-      cancel_url: `${baseUrl}/?payment=cancelled#devis`
-    });
-
-    quote.checkoutSessionId = session.id;
-    await saveQuote(quote);
-    return response.json({ checkoutUrl: session.url });
+    return response.json(publicCompany(await loadCompanyProfile()));
   } catch (error) {
-    if (error instanceof Stripe.errors.StripeError) {
-      console.error('Création de la session Stripe impossible :', error.message);
-      return response.status(502).json({ error: 'Stripe ne peut pas préparer le paiement actuellement. Réessayez plus tard.' });
-    }
-    if (error.message?.includes('invalide') || error.message?.includes('doit être') || error.message?.includes('au moins')) {
-      return response.status(400).json({ error: error.message });
-    }
-    console.error('Création de paiement impossible :', error);
-    return response.status(500).json({ error: 'Impossible de préparer le paiement. Réessayez plus tard.' });
+    console.error('Lecture du profil officiel impossible :', error);
+    return response.status(500).json({ error: 'Impossible de lire les informations officielles.' });
   }
 });
 
-app.get('/api/payment-status', async (request, response) => {
+async function createSignedQuote(body) {
+  const clientName = readText(body?.clientName, 'Nom client', 120);
+  const clientEmail = normalizeEmail(body?.clientEmail);
+  const service = readText(body?.service, 'Prestation', 200);
+  const aidAmountCents = toCents(body.aidAmount);
+  const amounts = commissionOnGrantedArce(aidAmountCents);
+  const signature = readSignature(body.signature);
+  const profile = await loadCompanyProfile();
+  const missing = missingOfficialLabels(profile);
+  const quote = {
+    id: crypto.randomUUID(),
+    clientName,
+    clientEmail,
+    service,
+    aidAmountCents,
+    commissionCents: amounts.commissionCents,
+    secondInstallmentCommissionCents: 0,
+    signature,
+    createdAt: new Date().toISOString(),
+    paymentStatus: 'signature_enregistree',
+    documentsSentAt: null,
+    settledAt: null,
+    documentsBlockReason: missing.length
+      ? `Documents commerciaux bloqués. Informations officielles manquantes : ${missing.join(', ')}.`
+      : null,
+    events: [quoteEvent('signature', 'Devis signé. Aucun paiement n’est déclenché.')]
+  };
+  await saveQuote(quote);
+  return { quote, missing };
+}
+
+app.post('/api/quotes', formRateLimit, async (request, response) => {
+  if (!accountPool || !accountStoreReady) {
+    console.error('Base de données indisponible pour les devis :', accountStoreError);
+    return response.status(503).json({ error: 'L’enregistrement du devis est temporairement indisponible. Réessayez plus tard.' });
+  }
   try {
-    const sessionId = readText(request.query.session_id, 'Référence de paiement', 255);
-    if (!/^cs_(test|live)_[A-Za-z0-9]+$/.test(sessionId)) throw new Error('Référence de paiement invalide.');
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-    const quoteId = session.metadata?.quoteId;
-    if (!quoteId) return response.status(404).json({ error: 'Paiement introuvable.' });
-    const quote = await loadQuote(quoteId);
-    if (quote.checkoutSessionId !== session.id) return response.status(404).json({ error: 'Paiement introuvable.' });
+    const { quote, missing } = await createSignedQuote(request.body);
     return response.json({
-      paymentStatus: session.payment_status === 'paid' ? 'paid' : session.status,
-      documentsSent: Boolean(quote.documentsSentAt)
+      quote: publicQuote(quote),
+      paymentStarted: false,
+      documentsIssued: false,
+      missingOfficialFields: missing,
+      message: missing.length
+        ? 'Signature enregistrée. Aucun paiement n’est déclenché. Les documents commerciaux restent bloqués tant que les informations officielles de la SASU ne sont pas complètes.'
+        : 'Signature enregistrée. Aucun paiement n’est déclenché. Le règlement unique sera confirmé par l’administration après réception du premier versement ARCE.'
     });
   } catch (error) {
-    if (error instanceof Stripe.errors.StripeError) {
-      console.error('Vérification auprès de Stripe impossible :', error.message);
-      return response.status(502).json({ error: 'La vérification du paiement auprès de Stripe a échoué.' });
+    if (error.message?.includes('invalide') || error.message?.includes('doit être') || error.message?.includes('Veuillez')) {
+      return response.status(400).json({ error: error.message });
     }
-    if (error.code === 'ENOENT') return response.status(404).json({ error: 'Paiement introuvable.' });
-    if (error.message?.includes('invalide')) return response.status(400).json({ error: error.message });
-    console.error('Lecture du statut de paiement impossible :', error);
-    return response.status(500).json({ error: 'Impossible de vérifier le paiement.' });
+    console.error('Enregistrement du devis impossible :', error);
+    return response.status(500).json({ error: 'Impossible d’enregistrer le devis. Réessayez plus tard.' });
+  }
+});
+
+app.post('/api/checkout-session', (_request, response) => {
+  response.status(410).json({
+    error: 'La signature n’entraîne aucun paiement en ligne. Aucun règlement n’a été créé.'
+  });
+});
+
+app.get('/api/admin/company', documentRateLimit, requireAccount({ admin: true }), async (_request, response) => {
+  try {
+    const profile = await loadCompanyProfile();
+    return response.json({
+      ...profile,
+      shareCapitalEuros: profile.shareCapitalCents ? (profile.shareCapitalCents / 100).toFixed(2) : '',
+      missing: missingOfficialLabels(profile),
+      ready: commercialDocumentsAllowed(profile),
+      plannedOpeningDate: PLANNED_SASU_OPENING_DATE
+    });
+  } catch (error) {
+    console.error('Lecture du profil SASU impossible :', error);
+    return response.status(500).json({ error: 'Impossible de lire les informations officielles.' });
+  }
+});
+
+app.put('/api/admin/company', documentRateLimit, requireAccount({ admin: true }), async (request, response) => {
+  const { profile, errors } = readOfficialUpdate(request.body);
+  if (errors.length) return response.status(400).json({ error: errors.join(' ') });
+  try {
+    await accountPool.query(
+      `UPDATE company_profile
+       SET legal_name = $1, legal_form = 'SASU', opening_date = $2, president_name = $3,
+           registered_office = $4, share_capital_cents = $5, siren = $6, siret = $7,
+           rcs = $8, vat_number = $9, updated_at = NOW()
+       WHERE id = 1`,
+      [
+        profile.legalName, profile.openingDate, profile.presidentName, profile.registeredOffice,
+        profile.shareCapitalCents, profile.siren, profile.siret, profile.rcs, profile.vatNumber
+      ]
+    );
+    const stored = await loadCompanyProfile();
+    return response.json({
+      ...stored,
+      missing: missingOfficialLabels(stored),
+      ready: commercialDocumentsAllowed(stored),
+      message: commercialDocumentsAllowed(stored)
+        ? 'Informations officielles enregistrées. Les documents commerciaux peuvent être émis.'
+        : 'Champs enregistrés. Les documents commerciaux restent bloqués tant que les informations obligatoires manquent.'
+    });
+  } catch (error) {
+    console.error('Enregistrement du profil SASU impossible :', error);
+    return response.status(500).json({ error: 'Impossible d’enregistrer les informations officielles.' });
+  }
+});
+
+app.get('/api/admin/quotes', documentRateLimit, requireAccount({ admin: true }), async (_request, response) => {
+  try {
+    const result = await accountPool.query('SELECT data FROM quotes ORDER BY created_at DESC');
+    return response.json({
+      quotes: result.rows.map((row) => {
+        const quote = asQuote(row.data);
+        return { id: quote.id, clientName: quote.clientName, clientEmail: quote.clientEmail, ...publicQuote(quote) };
+      })
+    });
+  } catch (error) {
+    console.error('Lecture des devis impossible :', error);
+    return response.status(500).json({ error: 'Impossible de lire les devis.' });
+  }
+});
+
+app.post('/api/admin/quotes/:id/confirm-settlement', documentRateLimit, requireAccount({ admin: true }), async (request, response) => {
+  if (request.body?.firstArceInstallmentReceived !== true) {
+    return response.status(400).json({ error: 'La confirmation exige que le premier versement ARCE ait été reçu.' });
+  }
+  try {
+    const quote = await loadQuote(request.params.id);
+    if (quote.paymentStatus !== 'reglement_unique_confirme') {
+      quote.paymentStatus = 'reglement_unique_confirme';
+      quote.settledAt = new Date().toISOString();
+      quote.secondInstallmentCommissionCents = 0;
+      quote.events.push(quoteEvent(
+        'reglement_unique',
+        `Réception du premier versement ARCE confirmée. Commission unique de ${formatMoney(quote.commissionCents)} enregistrée. Commission du second versement : 0 €.`
+      ));
+      await saveQuote(quote);
+      await logDocumentAccess(request.account.email, null, null, `règlement unique confirmé pour le devis ${quote.id}`);
+    }
+    const documents = await issueCommercialDocuments(quote);
+    const fresh = await loadQuote(quote.id);
+    return response.json({
+      quote: publicQuote(fresh),
+      documentsIssued: documents.issued,
+      missingOfficialFields: documents.missing,
+      message: documents.issued
+        ? 'Règlement unique confirmé. Documents envoyés. Aucune commission sur le second versement.'
+        : 'Règlement unique confirmé, sans commission sur le second versement. Les documents commerciaux restent bloqués par les informations officielles manquantes.'
+    });
+  } catch (error) {
+    if (error.code === 'ENOENT') return response.status(404).json({ error: 'Devis introuvable.' });
+    console.error('Confirmation du règlement impossible :', error);
+    return response.status(500).json({ error: 'Impossible de confirmer le règlement unique.' });
+  }
+});
+
+app.get('/api/admin/preparation', documentRateLimit, requireAccount({ admin: true }), async (_request, response) => {
+  response.json({
+    ads: adDrafts,
+    seo: seoChecklist,
+    published: false,
+    message: 'Brouillons internes uniquement. Aucune publicité n’est diffusée.'
+  });
+});
+
+app.get('/api/admin/suivi', documentRateLimit, requireAccount({ admin: true }), async (_request, response) => {
+  try {
+    const [quotes, requests, callbacks] = await Promise.all([
+      accountPool.query('SELECT data FROM quotes ORDER BY created_at DESC LIMIT 50'),
+      accountPool.query(
+        `SELECT document_requests.id, accounts.email, document_requests.kinds, document_requests.message,
+                document_requests.created_at, document_requests.resolved_at
+         FROM document_requests JOIN accounts ON accounts.id = document_requests.account_id
+         ORDER BY document_requests.created_at DESC LIMIT 50`
+      ),
+      accountPool.query('SELECT id, phone, created_at FROM callback_requests ORDER BY created_at DESC LIMIT 50')
+    ]);
+    return response.json({
+      quotes: quotes.rows.map((row) => {
+        const quote = asQuote(row.data);
+        return { clientEmail: quote.clientEmail, ...publicQuote(quote) };
+      }),
+      documentRequests: requests.rows.map((row) => ({
+        id: row.id,
+        email: row.email,
+        kinds: row.kinds,
+        message: row.message,
+        createdAt: row.created_at,
+        resolvedAt: row.resolved_at
+      })),
+      callbacks: callbacks.rows
+    });
+  } catch (error) {
+    console.error('Lecture du suivi impossible :', error);
+    return response.status(500).json({ error: 'Impossible de charger le suivi.' });
   }
 });
 
@@ -1253,7 +1457,7 @@ async function initializeAccountStore() {
   }
 
   try {
-    await accountPool.query(`
+    const schema = `
       CREATE TABLE IF NOT EXISTS accounts (
         id UUID PRIMARY KEY,
         email TEXT NOT NULL UNIQUE,
@@ -1327,7 +1531,30 @@ async function initializeAccountStore() {
         action TEXT NOT NULL,
         at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
-    `);
+      CREATE TABLE IF NOT EXISTS company_profile (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        legal_name TEXT,
+        legal_form TEXT NOT NULL DEFAULT 'SASU',
+        opening_date DATE NOT NULL DEFAULT DATE '2026-12-05',
+        president_name TEXT,
+        registered_office TEXT,
+        share_capital_cents INTEGER,
+        siren TEXT,
+        siret TEXT,
+        rcs TEXT,
+        vat_number TEXT,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      INSERT INTO company_profile (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+      CREATE TABLE IF NOT EXISTS callback_requests (
+        id UUID PRIMARY KEY,
+        phone TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `;
+    for (const statement of schema.split(';').map((part) => part.trim()).filter(Boolean)) {
+      await accountPool.query(statement);
+    }
     accountStoreReady = true;
   } catch (error) {
     accountStoreError = error;
@@ -1335,10 +1562,41 @@ async function initializeAccountStore() {
   }
 }
 
+async function createAccountPool() {
+  if (!process.env.DATABASE_URL) return null;
+  if (process.env.DATABASE_URL === 'pglite:memory') {
+    const { PGlite } = await import('@electric-sql/pglite');
+    const database = new PGlite();
+    return {
+      async query(text, values) {
+        const result = await database.query(text, values);
+        return { rows: result.rows, rowCount: result.affectedRows ?? result.rows?.length ?? 0 };
+      },
+      async connect() {
+        return {
+          query: (text, values) => this.query(text, values),
+          release() {}
+        };
+      }
+    };
+  }
+  return new Pool({ connectionString: process.env.DATABASE_URL });
+}
+
+accountPool = await createAccountPool();
 await initializeAccountStore();
 
-if (!process.env.VERCEL) {
-  app.listen(port, () => console.log(`FacilePro est disponible sur http://localhost:${port}`));
+if (!process.env.VERCEL && process.env.LISTEN !== 'false') {
+  app.listen(port, () => console.log(`Facile Pro est disponible sur http://localhost:${port}`));
 }
 
 export default app;
+export { getCapturedMail, clearCapturedMail, computeArce };
+
+function getCapturedMail() {
+  return capturedMail;
+}
+
+function clearCapturedMail() {
+  capturedMail.length = 0;
+}

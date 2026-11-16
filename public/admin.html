@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="referrer" content="no-referrer">
     <meta name="robots" content="noindex, nofollow">
-    <title>Administration | FacilePro</title>
+    <title>Administration | Facile Pro</title>
     <style>
       :root {
         color-scheme: light;
@@ -123,12 +123,17 @@
 
       .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
       .code-input { display: block; width: 10em; margin-top: 6px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; font: inherit; font-size: 1.2rem; letter-spacing: 0.2em; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+      .field { display: grid; gap: 4px; font-size: 0.92rem; }
+      .field input, .field textarea { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 10px; font: inherit; }
+      .draft { margin: 0 0 10px; padding: 12px; border-left: 4px solid #c8891a; background: #fff8eb; border-radius: 10px; }
+      .muted { color: var(--muted); }
     </style>
   </head>
   <body>
     <header>
       <div class="container header-inner">
-        <h1>FacilePro · Administration des dossiers</h1>
+        <h1>Facile Pro · Administration des dossiers</h1>
         <a href="/#compte">Retour à l’espace client</a>
       </div>
     </header>
@@ -149,6 +154,46 @@
             <button class="button" type="submit">Valider le code</button>
           </div>
         </form>
+      </section>
+
+      <section class="panel" id="company-panel" hidden>
+        <h2>SASU — informations officielles</h2>
+        <p class="muted">Ouverture prévue le 5 décembre 2026. Laissez vides les identifiants non encore attribués. L’ancien SIRET radié est refusé. Tant que ces champs sont incomplets, les documents commerciaux ne partent pas.</p>
+        <form id="company-form">
+          <div class="grid">
+            <label class="field">Dénomination sociale<input name="legalName" maxlength="200" autocomplete="organization"></label>
+            <label class="field">Président<input name="presidentName" maxlength="200"></label>
+            <label class="field">Siège social<input name="registeredOffice" maxlength="300"></label>
+            <label class="field">Capital social (€)<input name="shareCapitalEuros" inputmode="decimal"></label>
+            <label class="field">SIREN<input name="siren" inputmode="numeric" maxlength="9"></label>
+            <label class="field">SIRET<input name="siret" inputmode="numeric" maxlength="14"></label>
+            <label class="field">RCS<input name="rcs" maxlength="200"></label>
+            <label class="field">N° TVA, si déjà attribué<input name="vatNumber" maxlength="20"></label>
+            <label class="field">Date d’ouverture prévue<input name="openingDate" type="date" value="2026-12-05"></label>
+          </div>
+          <p class="muted" id="company-missing"></p>
+          <div class="actions">
+            <button class="button" type="submit">Enregistrer les informations officielles</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel" id="quotes-panel" hidden>
+        <h2>Devis signés</h2>
+        <p class="muted">La confirmation enregistre le règlement unique après réception du premier versement ARCE. Elle ne crée aucune commission sur le second versement.</p>
+        <ul class="plain" id="quote-rows"></ul>
+      </section>
+
+      <section class="panel" id="preparation-panel" hidden>
+        <h2>Préparation du référencement et brouillons publicitaires</h2>
+        <p class="muted" id="preparation-message"></p>
+        <ul class="plain" id="seo-rows"></ul>
+        <div id="ad-rows"></div>
+      </section>
+
+      <section class="panel" id="suivi-panel" hidden>
+        <h2>Suivi des demandes</h2>
+        <ul class="plain" id="suivi-rows"></ul>
       </section>
 
       <section class="panel" id="list-panel" hidden>
@@ -253,7 +298,7 @@
           });
           document.getElementById('admin-code').value = '';
           codePanel.hidden = true;
-          await loadList();
+          await loadAdministration();
         } catch (error) {
           setStatus(error.message, true);
         }
@@ -426,7 +471,139 @@
       });
 
       document.getElementById('back-to-list').addEventListener('click', loadList);
-      loadList();
+
+      const showWorkPanels = () => {
+        document.getElementById('company-panel').hidden = false;
+        document.getElementById('quotes-panel').hidden = false;
+        document.getElementById('preparation-panel').hidden = false;
+        document.getElementById('suivi-panel').hidden = false;
+      };
+
+      const loadCompany = async () => {
+        const result = await api('/api/admin/company');
+        const form = document.getElementById('company-form');
+        Object.entries(result).forEach(([key, value]) => {
+          if (form.elements[key]) form.elements[key].value = value || '';
+        });
+        if (!form.elements.openingDate.value) form.elements.openingDate.value = result.plannedOpeningDate;
+        document.getElementById('company-missing').textContent = result.ready
+          ? 'Informations suffisantes pour émettre les documents commerciaux.'
+          : `Documents commerciaux bloqués. Manque : ${result.missing.join(', ')}.`;
+      };
+
+      document.getElementById('company-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const payload = Object.fromEntries(new FormData(form).entries());
+        try {
+          const result = await api('/api/admin/company', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          await loadCompany();
+          setStatus(result.message);
+        } catch (error) {
+          setStatus(error.message, true);
+        }
+      });
+
+      const loadQuotes = async () => {
+        const result = await api('/api/admin/quotes');
+        const list = document.getElementById('quote-rows');
+        list.replaceChildren();
+        if (result.quotes.length === 0) {
+          const item = document.createElement('li');
+          item.textContent = 'Aucun devis signé.';
+          list.append(item);
+          return;
+        }
+        result.quotes.forEach((quote) => {
+          const item = document.createElement('li');
+          const text = document.createElement('span');
+          text.textContent = `${quote.reference} — ${quote.clientName} — ${quote.clientEmail} — ARCE ${money(quote.aidAmountCents)} — commission unique ${money(quote.commissionCents)} — 2e versement 0 € — ${quote.paymentStatus}`;
+          item.append(text);
+          if (quote.paymentStatus !== 'reglement_unique_confirme' || !quote.documentsSent) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'button';
+            button.textContent = 'Confirmer le règlement unique';
+            button.addEventListener('click', async () => {
+              if (!window.confirm('Confirmer la réception du premier versement ARCE et le règlement unique ? Aucune somme ne sera ajoutée pour le second versement.')) return;
+              try {
+                const confirmation = await api(`/api/admin/quotes/${encodeURIComponent(quote.id)}/confirm-settlement`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ firstArceInstallmentReceived: true })
+                });
+                await loadQuotes();
+                setStatus(confirmation.message);
+              } catch (error) {
+                setStatus(error.message, true);
+              }
+            });
+            item.append(button);
+          }
+          list.append(item);
+        });
+      };
+
+      const loadPreparation = async () => {
+        const result = await api('/api/admin/preparation');
+        document.getElementById('preparation-message').textContent = result.message;
+        const seo = document.getElementById('seo-rows');
+        seo.replaceChildren();
+        result.seo.forEach((item) => {
+          const line = document.createElement('li');
+          line.textContent = `${item.done ? 'Prêt' : 'En attente'} — ${item.label}${item.blockedBy ? ` — ${item.blockedBy}` : ''}`;
+          seo.append(line);
+        });
+        const ads = document.getElementById('ad-rows');
+        ads.replaceChildren();
+        result.ads.forEach((draft) => {
+          const card = document.createElement('article');
+          card.className = 'draft';
+          card.innerHTML = `<strong>${draft.headline}</strong> · ${draft.channel} · ${draft.status}<p>${draft.description}</p><p class="muted">${draft.note}</p>`;
+          ads.append(card);
+        });
+      };
+
+      const loadSuivi = async () => {
+        const result = await api('/api/admin/suivi');
+        const list = document.getElementById('suivi-rows');
+        list.replaceChildren();
+        const lines = [
+          ...result.quotes.map((quote) => `Devis ${quote.reference} · ${quote.clientEmail} · ${quote.paymentStatus}`),
+          ...result.documentRequests.map((request) => `Pièces · ${request.email} · ${request.resolvedAt ? 'traitée' : 'en attente'}`),
+          ...result.callbacks.map((callback) => `Rappel · ${callback.phone}`)
+        ];
+        if (lines.length === 0) lines.push('Aucune demande pour le moment.');
+        lines.forEach((line) => {
+          const item = document.createElement('li');
+          item.textContent = line;
+          list.append(item);
+        });
+      };
+
+      const hideWorkPanels = () => {
+        document.getElementById('company-panel').hidden = true;
+        document.getElementById('quotes-panel').hidden = true;
+        document.getElementById('preparation-panel').hidden = true;
+        document.getElementById('suivi-panel').hidden = true;
+        listPanel.hidden = true;
+      };
+
+      const loadAdministration = async () => {
+        try {
+          await Promise.all([loadCompany(), loadQuotes(), loadPreparation(), loadSuivi(), loadList()]);
+          showWorkPanels();
+        } catch (error) {
+          hideWorkPanels();
+          if (error.message.includes('code')) return;
+          setStatus(error.message, true);
+        }
+      };
+      loadAdministration();
     </script>
   </body>
 </html>

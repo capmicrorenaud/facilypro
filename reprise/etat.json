@@ -1,0 +1,45 @@
+{
+  "projet": "Facile Pro",
+  "depot": "capmicrorenaud/facilypro",
+  "branche": "reprise/reglement-unique-sasu",
+  "baseDistante": {
+    "seuleBranche": "master",
+    "dernierCommit": "d9c685c3bdb8dd2a36f37b4c4e59aad64c404b29",
+    "date": "2026-10-25T14:26:37+01:00",
+    "auteur": "devevey renaud",
+    "branchesReplit": [],
+    "commitsReplit": []
+  },
+  "constat": "Le travail annoncé par Replit n’est pas dans le dépôt distant. Aucune branche ni aucun commit autre que master n’existe. Les corrections sont donc faites à partir de master, sans écraser un diff Replit absent.",
+  "manquesReplitNonPousses": [
+    "La signature appelait Stripe Checkout.",
+    "Aucune confirmation administrative du règlement unique après le premier versement ARCE.",
+    "Le SIRET 10945831500016 était affiché ; aucun champ officiel de la SASU ne bloquait les documents.",
+    "Aucun brouillon publicitaire n’était versionné.",
+    "Aucun test automatisé n’était versionné.",
+    "L’inscription, l’authentification et les emails n’étaient pas exercés.",
+    "Aucune prévisualisation Vercel de la reprise n’était enregistrée."
+  ],
+  "verifications": {
+    "tests": "7 réussis le 2026-11-16 : calcul, refus de l’ancien SIRET, absence de Stripe, inscription, email capturé, connexion, droits, signature sans paiement, blocage des documents, confirmation du règlement unique, dépôt chiffré.",
+    "navigateur": "Prévisualisation locale : inscription de camille.martin@exemple.test, email capturé, confirmation, devis de 10 000 € affiché à 1 200 €, signature sans paiement, accès administration refusé pour ce compte.",
+    "production": "non modifiée",
+    "publicite": "brouillons uniquement, non diffusés",
+    "vercel": "non déployé"
+  },
+  "previsualisationLocale": "http://127.0.0.1:4242/",
+  "emailsLocaux": "http://127.0.0.1:4242/apercu-emails.html",
+  "regleCommerciale": "Commission unique de 12 % du montant total de l’ARCE accordée, exigible après réception du premier versement, puis clôture. Aucune commission sur le second versement. Pas de Stripe.",
+  "sasu": {
+    "ouverturePrevue": "2026-12-05",
+    "identifiants": "champs vides à compléter après immatriculation",
+    "ancienSiretRefuse": "10945831500016"
+  },
+  "blocagesRestants": [
+    "Saisir les vrais identifiants de la SASU après immatriculation. Ils ne sont pas inventés.",
+    "Brancher une base PostgreSQL et un service d’email de test avant toute ouverture publique. La prévisualisation locale efface ses données à l’arrêt.",
+    "Confirmer un déploiement de prévisualisation Vercel sans toucher à la production.",
+    "Ne pas diffuser les brouillons publicitaires ni soumettre le sitemap tant que la SASU et la prévisualisation ne sont pas validées."
+  ],
+  "misAJourLe": "2026-11-16"
+}

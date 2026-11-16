@@ -1,6 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /admin.html
+Disallow: /apercu-emails.html
 Disallow: /api/
 
 Sitemap: https://www.facilepro.fr/sitemap.xml

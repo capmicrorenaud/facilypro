@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Emails capturés | Facile Pro</title>
+    <style>
+      body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; background: #f3f6fb; color: #17212f; }
+      main { width: min(880px, calc(100% - 32px)); margin: 32px auto; }
+      article { margin: 0 0 16px; padding: 16px; border-radius: 16px; background: #fff; border: 1px solid #dfe8f5; }
+      pre { white-space: pre-wrap; }
+      a { color: #2c5ee7; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Emails de la prévisualisation</h1>
+      <p>Ces messages restent sur cette machine. Aucun envoi réel n’est fait. Cette page ne sert pas en production.</p>
+      <p><a href="/#compte">Retour à l’espace client</a></p>
+      <div id="messages"></div>
+    </main>
+    <script>
+      const target = document.getElementById('messages');
+      const load = async () => {
+        const response = await fetch('/api/preview/mailbox');
+        const result = await response.json();
+        target.replaceChildren();
+        if (!response.ok) {
+          target.textContent = 'La capture d’emails n’est pas active.';
+          return;
+        }
+        if (result.messages.length === 0) {
+          target.textContent = 'Aucun email pour le moment.';
+          return;
+        }
+        result.messages.slice().reverse().forEach((message) => {
+          const article = document.createElement('article');
+          const title = document.createElement('h2');
+          title.textContent = message.subject;
+          const meta = document.createElement('p');
+          meta.textContent = `Pour ${message.to}`;
+          const body = document.createElement('pre');
+          body.textContent = message.text;
+          article.append(title, meta, body);
+          target.append(article);
+        });
+      };
+      load();
+      window.setInterval(load, 3000);
+    </script>
+  </body>
+</html>

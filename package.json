@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.mjs"
+    "start": "node server.mjs",
+    "test": "node --test --test-concurrency=1",
+    "preview": "node scripts/preview.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -15,7 +17,9 @@
     "express-rate-limit": "^8.7.1",
     "nodemailer": "^10.1.1",
     "pdfkit": "^0.16.0",
-    "pg": "^8.23.1",
-    "stripe": "^17.5.0"
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.16"
   }
 }
