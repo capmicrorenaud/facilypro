@@ -24,6 +24,7 @@ const directory = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT) || 4242;
 const baseUrl = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const mailCapture = process.env.MAIL_CAPTURE === 'true';
+const previewDeployment = process.env.PREVIEW === 'true' || process.env.VERCEL_ENV === 'preview';
 const smtpSettings = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS'];
 const smtpConfigured = !mailCapture && smtpSettings.every((setting) => process.env[setting]);
 const requiredSettings = [
@@ -671,7 +672,15 @@ app.use((_request, response, next) => {
   response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   response.setHeader('Content-Security-Policy', contentSecurityPolicy);
   if (/^https:/i.test(baseUrl)) response.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
+  if (previewDeployment) response.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
   next();
+});
+
+app.get('/robots.txt', (_request, response, next) => {
+  if (!previewDeployment) return next();
+  response.type('text/plain');
+  response.setHeader('Cache-Control', 'no-store');
+  return response.send('User-agent: *\nDisallow: /\n');
 });
 
 app.get('/api/ready', async (_request, response) => {
@@ -1315,7 +1324,7 @@ app.post('/api/callback-request', formRateLimit, async (request, response) => {
 });
 
 app.get('/api/preview/mailbox', async (_request, response) => {
-  if (!mailCapture || process.env.VERCEL) return response.status(404).json({ error: 'Introuvable.' });
+  if (!mailCapture || (process.env.VERCEL && !previewDeployment)) return response.status(404).json({ error: 'Introuvable.' });
   response.setHeader('Cache-Control', 'no-store');
   if (accountPool && accountStoreReady) {
     const result = await accountPool.query(
