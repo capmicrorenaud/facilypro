@@ -2,38 +2,31 @@
   "projet": "Facile Pro",
   "depot": "capmicrorenaud/facilypro",
   "branche": "reprise/reglement-unique-sasu",
-  "baseDistante": {
-    "seuleBrancheAvantReprise": "master",
-    "dernierCommitMaster": "d9c685c3bdb8dd2a36f37b4c4e59aad64c404b29",
-    "date": "2026-10-25T14:26:37+01:00",
-    "branchesReplit": [],
-    "commitsReplit": []
+  "dernierCommitPousse": "ea8d6c2",
+  "coupurePrevue": "2026-11-16 13:45-16:45",
+  "repriseSansRecommencer": {
+    "nePasRefaire": [
+      "Ne pas recréer la base Neon facilepro-essai.",
+      "Ne pas modifier la production www.facilepro.fr ni la base du projet transcrivo.",
+      "Ne pas activer de formule payante.",
+      "Ne pas remplacer la clé locale data/encryption.key ni la clé de prévisualisation déjà enregistrée chez Vercel.",
+      "Ne pas afficher de secret et ne rien committer depuis data/, .env ou .vercel."
+    ],
+    "dejaFait": [
+      "Branche poussée sur GitHub : reprise/reglement-unique-sasu.",
+      "Base gratuite Neon facilepro-essai, équipe cap-micro, projet facilypro, environnement Preview seulement. Créée le 2026-11-16 à 12:49. Aucun dossier client dedans au moment de la coupure.",
+      "Réglages de prévisualisation enregistrés séparément de la production : capture d’emails, clé de documents, secret de purge, adresse de la prévisualisation.",
+      "Prévisualisation protégée : https://facilypro-git-reprise-reglement-unique-sasu-cap-micro.vercel.app",
+      "Sans connexion Vercel, cette adresse répond 302 vers l’identification Vercel et envoie X-Robots-Tag: noindex.",
+      "Le site public n’a pas été redéployé. Dernière production : il y a 22 jours.",
+      "Tests locaux fictifs réussis : 7 parcours en mémoire, et auparavant 1 persistance PostgreSQL réelle.",
+      "Parcours navigateur local réussi avec camille.apercu@exemple.test, devis 10 000 € à 1 200 €, second versement 0, puis présence après redémarrage."
+    ],
+    "prochaineEtapeExacte": "Relancer uniquement le parcours fictif sur la prévisualisation hébergée. Le script data/hosted-journey.mjs s’est arrêté à POST /api/account/register parce que l’appel vercel curl a renvoyé un code d’erreur ; le message détaillé n’a pas été conservé. Corriger l’appel pour afficher le code HTTP sans secret, puis recommencer l’inscription fictive, la boîte de test, le devis, l’isolation d’un second compte et le refus d’administration. Ne pas renvoyer d’email à un vrai client."
   },
-  "constat": "Le travail annoncé par Replit n’était pas dans le dépôt. Les corrections sont faites sur la branche reprise/reglement-unique-sasu, sans modifier master ni la production.",
-  "verifications": {
-    "tests": "8 réussis le 2026-11-16 : 7 sur PostgreSQL en mémoire pour le calcul et le parcours, 1 sur PostgreSQL réel pour la persistance, l’isolation, la sauvegarde et la restauration.",
-    "navigateur": "Prévisualisation PostgreSQL sur http://127.0.0.1:4242 : inscription de camille.apercu@exemple.test, email conservé en base, confirmation, devis 10 000 € à 1 200 € sans paiement, administration refusée, devis toujours présent après redémarrage puis reconnexion.",
-    "production": "non modifiée",
-    "publicite": "brouillons uniquement, non diffusés",
-    "vercel": "non déployé",
-    "pretPourDeVraisClients": false
-  },
+  "previsualisationHebergee": "https://facilypro-git-reprise-reglement-unique-sasu-cap-micro.vercel.app",
   "previsualisationLocale": "http://127.0.0.1:4242/",
-  "emailsLocaux": "http://127.0.0.1:4242/apercu-emails.html",
-  "stockage": "PostgreSQL local dans data/postgres, ignoré par git. Sauvegarde : npm run backup. Restauration : npm run restore.",
-  "regleCommerciale": "Commission unique de 12 % du montant total de l’ARCE accordée, exigible après réception du premier versement, puis clôture. Aucune commission sur le second versement. Pas de Stripe.",
-  "sasu": {
-    "ouverturePrevue": "2026-12-05",
-    "identifiants": "champs vides à compléter après immatriculation",
-    "ancienSiretRefuse": "10945831500016"
-  },
-  "actionsUtilisateur": [
-    "Fournir DATABASE_URL d’un PostgreSQL de production que vous contrôlez. Aucun hébergement n’a été acheté.",
-    "Fournir SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS et MAIL_FROM. Aucun email réel n’est envoyé aujourd’hui.",
-    "Déposer DOCUMENTS_ENCRYPTION_KEY et CRON_SECRET uniquement dans l’environnement d’hébergement, jamais dans git.",
-    "Remplacer ADMIN_EMAILS par votre adresse réelle.",
-    "Après immatriculation, saisir la SASU dans /admin.html sans réutiliser le SIRET radié.",
-    "Donner un accord explicite avant tout déploiement Vercel, toute dépense publicitaire ou toute soumission Search Console."
-  ],
-  "misAJourLe": "2026-11-16"
+  "pretPourDeVraisClients": false,
+  "videos": "Aucune vidéo n’était en cours.",
+  "misAJourLe": "2026-11-16T13:05:00+01:00"
 }
